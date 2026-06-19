@@ -31,12 +31,28 @@ export default defineConfig({
     ]
   },
   optimizeDeps: {
-    exclude: [
-      "@agentscope-ai/chat",
+    exclude: ["@agentscope-ai/chat"],
+    include: [
       "@agentscope-ai/chat/lib/Bubble",
       "@agentscope-ai/chat/lib/Sender",
       "@agentscope-ai/chat/lib/Welcome"
-    ]
+    ],
+    esbuildOptions: {
+      plugins: [
+        {
+          name: "spark-chat-runtime-shim",
+          setup(build) {
+            build.onResolve({ filter: /^\.{1,2}\/\.\.?$/ }, (args) => {
+              if (!args.importer.includes("@agentscope-ai/chat/lib")) {
+                return null;
+              }
+
+              return { path: sparkChatRuntime };
+            });
+          }
+        }
+      ]
+    }
   },
   server: {
     // 固定端口便于 Electron 主进程通过环境变量连接开发服务器。
