@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { AgentEchoResponse, HealthResponse, RuntimeResponse, fetchHealth, fetchRuntime, sendAgentEcho } from "./api";
 import Ferrofluid from "./features/backgrounds/Ferrofluid";
+import SparkSurface from "./features/spark/SparkSurface";
 
 // 用联合类型表达异步数据的三种状态，避免界面读取未完成的数据。
 type LoadState<T> =
@@ -132,6 +133,8 @@ function App() {
             )}
           </div>
         </section>
+
+        <SparkSurface />
       </section>
     </main>
   );

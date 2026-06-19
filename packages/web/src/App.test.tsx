@@ -55,6 +55,14 @@ describe("App", () => {
     expect(background).toHaveAttribute("aria-hidden", "true");
   });
 
+  it("renders AgentScope Spark Design and Spark Chat surfaces", () => {
+    render(<App />);
+
+    expect(screen.getByTestId("spark-ui-surface")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Spark Design action" })).toBeInTheDocument();
+    expect(screen.getByText("Spark Chat preview")).toBeInTheDocument();
+  });
+
   it("sends an agent echo message", async () => {
     render(<App />);
 
