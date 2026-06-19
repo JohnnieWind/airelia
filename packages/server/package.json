@@ -1,0 +1,11 @@
+{
+  "name": "@airelia/server",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "mvn spring-boot:run",
+    "test": "mvn test",
+    "build": "mvn package"
+  }
+}
+
