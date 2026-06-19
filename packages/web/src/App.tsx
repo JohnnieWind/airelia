@@ -39,6 +39,7 @@ function App() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#07100f] text-ink">
+      {/* 背景层只负责视觉氛围，禁用指针事件并从辅助技术中隐藏。 */}
       <div className="pointer-events-none fixed inset-0" aria-hidden="true" data-testid="ferrofluid-background">
         <Ferrofluid
           colors={["#ffffff", "#ffffff", "#ffffff"]}
@@ -57,6 +58,7 @@ function App() {
           mouseRadius={0.35}
         />
       </div>
+      {/* 半透明遮罩提高前景卡片的可读性，同时保留 Ferrofluid 的运动感。 */}
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(247,244,238,0.18),transparent_34%),linear-gradient(180deg,rgba(7,16,15,0.12),rgba(7,16,15,0.72))]" />
       <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 py-8">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/20 pb-5">

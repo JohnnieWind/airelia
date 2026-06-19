@@ -4,6 +4,8 @@ import React, { createContext, forwardRef, useContext } from "react";
 
 import { IconButton } from "./sparkDesignRuntime";
 
+// AgentScope Chat 原始 ActionButton 使用 forwardRef(ActionButton)，但 ActionButton 只接收 props。
+// 本地替身保持相同导出，同时显式接收 ref，消除 React 开发态警告。
 type ActionName = "onSend" | "onClear" | "onCancel" | "onSpeech";
 
 interface ActionButtonContextProps {
@@ -27,6 +29,7 @@ interface ActionButtonProps extends Omit<ButtonProps, "onClick"> {
 
 const ActionButtonContext = createContext<ActionButtonContextProps>({ prefixCls: "" });
 
+// Chat Sender 用 action 名称驱动按钮行为，这里把 action 映射回对应禁用状态。
 function getActionDisabled(context: ActionButtonContextProps, action: ActionName): boolean | undefined {
   switch (action) {
     case "onSend":
@@ -46,6 +49,7 @@ function ActionButtonWithRef(
 ) {
   const context = useContext(ActionButtonContext);
   const actionHandler = context[action];
+  // 根级 disabled 优先级最高，其次才是按钮自身和 action 级禁用状态。
   const mergedDisabled = context.disabled ?? disabled ?? getActionDisabled(context, action);
 
   return (

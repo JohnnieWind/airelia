@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Mesh, Program, Renderer, Triangle } from "ogl";
 
+/** ReactBits Ferrofluid 背景的本地 TS 版本：用 OGL 管理一张全屏 WebGL 画布。 */
 export interface FerrofluidProps {
   className?: string;
   dpr?: number;
@@ -27,6 +28,7 @@ type RGB = [number, number, number];
 
 const MAX_COLORS = 8;
 
+// Shader 侧固定使用 8 个颜色 uniform；不足的颜色会用最后一个颜色补齐。
 const hexToRGB = (hex: string): RGB => {
   const c = hex.replace("#", "").padEnd(6, "0");
   const r = parseInt(c.slice(0, 2), 16) / 255;
@@ -52,6 +54,7 @@ const prepColors = (input?: string[]) => {
   return { arr, count, avg };
 };
 
+// 把业务侧的方向字符串转换为 shader 使用的二维流向向量。
 const flowVec = (direction?: string): [number, number] => {
   switch (direction) {
     case "up":
@@ -67,6 +70,7 @@ const flowVec = (direction?: string): [number, number] => {
   }
 };
 
+// 顶点 shader 只负责把全屏三角形铺满视口。
 const vertex = `
 attribute vec2 position;
 attribute vec2 uv;
@@ -77,6 +81,7 @@ void main() {
 }
 `;
 
+// 片元 shader 生成流体纹理、边缘高光、鼠标扰动和透明度。
 const fragment = `
 precision highp float;
 
@@ -210,6 +215,7 @@ void main() {
 }
 `;
 
+// 测试环境、SSR 或老浏览器没有 WebGL 时直接跳过渲染，保持页面可用。
 const canUseWebGL = () =>
   typeof window !== "undefined" &&
   typeof ResizeObserver !== "undefined" &&
@@ -238,6 +244,7 @@ function Ferrofluid({
   mouseDampening = 0.15,
   mixBlendMode
 }: FerrofluidProps) {
+  // OGL 对象不参与 React 渲染，用 ref 保存以便 animation frame 和 cleanup 使用。
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const programRef = useRef<Program | null>(null);
@@ -250,6 +257,7 @@ function Ferrofluid({
     const container = containerRef.current;
     if (!container || !canUseWebGL()) return;
 
+    // Renderer 生命周期完全由这个 effect 托管，组件卸载时要手动移除 canvas 和监听器。
     const renderer = new Renderer({
       dpr: dpr ?? (window.devicePixelRatio || 1),
       alpha: true,
@@ -265,6 +273,7 @@ function Ferrofluid({
 
     const { arr, count, avg } = prepColors(colors);
 
+    // uniforms 是 React props 到 shader 的唯一桥梁；重新传参时 effect 会重建 program。
     const uniforms = {
       iResolution: { value: [gl.drawingBufferWidth, gl.drawingBufferHeight, 1] },
       iMouse: { value: [0, 0] },
@@ -302,6 +311,7 @@ function Ferrofluid({
     const mesh = new Mesh(gl, { geometry, program });
     meshRef.current = mesh;
 
+    // 画布尺寸跟随容器，而不是 window，方便以后嵌入不同布局容器。
     const resize = () => {
       const rect = container.getBoundingClientRect();
       renderer.setSize(rect.width, rect.height);
@@ -312,6 +322,7 @@ function Ferrofluid({
     const observer = new ResizeObserver(resize);
     observer.observe(container);
 
+    // 鼠标坐标要转换成 WebGL 像素坐标，Y 轴方向和 DOM 坐标相反。
     const onPointerMove = (event: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
       const scaleFactor = renderer.dpr || 1;
@@ -331,6 +342,7 @@ function Ferrofluid({
       rafRef.current = requestAnimationFrame(loop);
       uniforms.iTime.value = time * 0.001;
       if (mouseDampening > 0) {
+        // 指数阻尼让鼠标扰动有粘滞感，避免背景跟手过硬。
         if (!lastTimeRef.current) lastTimeRef.current = time;
         const dt = (time - lastTimeRef.current) / 1000;
         lastTimeRef.current = time;
@@ -350,6 +362,7 @@ function Ferrofluid({
     rafRef.current = requestAnimationFrame(loop);
 
     return () => {
+      // WebGL canvas 和全局 pointer 监听都不是 React 管理的，需要显式清理。
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (mouseInteraction) window.removeEventListener("pointermove", onPointerMove);
       observer.disconnect();

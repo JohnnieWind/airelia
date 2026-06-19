@@ -7,6 +7,7 @@ import { useState } from "react";
 
 const starterPrompt = "Create a concise plan for the next Airelia agent workflow.";
 
+// AgentScope Spark 组件预览区：验证 Spark Design 和 Spark Chat 能在本项目 TS/Vite 中协同运行。
 function SparkSurface() {
   const [draft, setDraft] = useState(starterPrompt);
   const [lastPrompt, setLastPrompt] = useState(starterPrompt);
@@ -14,6 +15,7 @@ function SparkSurface() {
   function handleSubmit(value: string) {
     const trimmedValue = value.trim();
 
+    // 空输入不进入预览消息，保持聊天区只展示有效 prompt。
     if (!trimmedValue) {
       return;
     }
@@ -23,6 +25,7 @@ function SparkSurface() {
   }
 
   function handleSparkAction() {
+    // 这个按钮只演示 Spark Design 交互，先在本地更新 Sender 和 Bubble 状态。
     const nextPrompt = "Review runtime state, propose the smallest useful agent action, and keep the operator in control.";
 
     setLastPrompt(nextPrompt);
@@ -31,6 +34,7 @@ function SparkSurface() {
 
   return (
     <ConfigProvider {...carbonTheme}>
+      {/* ConfigProvider 让 Spark Chat 子组件获得和 Spark Design 一致的主题 token。 */}
       <section
         className="rounded-md border border-white/40 bg-white/90 p-5 text-ink shadow-sm backdrop-blur"
         data-testid="spark-ui-surface"
@@ -66,6 +70,7 @@ function SparkSurface() {
           </div>
 
           <div className="flex min-h-[260px] flex-col gap-3 rounded-md border border-ink/10 bg-[#f7f8fb] p-4">
+            {/* Bubble 和 Sender 来自 Spark Chat，用真实组件而非占位结构验证集成链路。 */}
             <Bubble
               avatar={{ children: <Bot className="h-4 w-4" />, style: { background: "#07100f", color: "#ffffff" } }}
               content="Spark Chat is ready inside the React TypeScript app."

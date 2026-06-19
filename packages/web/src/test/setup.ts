@@ -4,6 +4,7 @@ import { afterEach, expect } from "vitest";
 
 expect.extend(matchers);
 
+// AntD 响应式逻辑会访问 matchMedia；jsdom 没有实现，需要提供可监听的最小 mock。
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string): MediaQueryList => {
@@ -46,6 +47,7 @@ class ResizeObserverMock implements ResizeObserver {
   }
 
   observe(target: Element) {
+    // rc-textarea/rc-resize-observer 依赖首次 observe 回调来触发布局测量。
     this.callback(
       [
         {
@@ -101,6 +103,7 @@ window.getComputedStyle = (element: Element, pseudoElt?: string | null) => {
             propertyName === "line-height" ||
             propertyName === "width"
           ) {
+            // jsdom 对很多布局属性返回空字符串，补成像素值避免 textarea 高度计算出 NaN。
             return propertyName === "line-height" ? "24px" : propertyName === "width" ? "240px" : "0px";
           }
 
@@ -116,6 +119,7 @@ window.getComputedStyle = (element: Element, pseudoElt?: string | null) => {
 Object.defineProperty(HTMLTextAreaElement.prototype, "scrollHeight", {
   configurable: true,
   get() {
+    // rc-textarea 会创建隐藏 textarea 测量单行高度，jsdom 需要稳定的 scrollHeight。
     return 24;
   }
 });

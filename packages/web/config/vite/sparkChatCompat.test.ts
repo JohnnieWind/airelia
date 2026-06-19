@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { sparkChatCompat } from "./sparkChatCompat";
 
 describe("sparkChatCompat", () => {
+  // 这些测试锁定第三方包解析边界，避免升级 Vite 或 AgentScope 后警告回流。
   it("routes bare Spark Design imports through the narrow runtime shim", () => {
     const designAlias = sparkChatCompat.alias.find(({ find }) => find.toString().includes("@agentscope-ai\\/design"));
 

@@ -11,6 +11,7 @@ import classNames from "classnames";
 import { useLayoutEffect } from "react";
 import React, { forwardRef } from "react";
 
+// 只暴露当前页面和 Spark Chat 子模块真正用到的 Spark Design API，避免加载整包副作用。
 type SparkButtonProps = Omit<ButtonProps, "type"> & {
   iconSize?: React.CSSProperties["fontSize"];
   iconType?: string;
@@ -41,6 +42,7 @@ function getSizedIcon({
   iconType,
   size
 }: Pick<SparkButtonProps, "icon" | "iconSize" | "iconType" | "size">) {
+  // Spark Design 支持 iconType 字符串和 React icon 两种形式，这里保留这两条路径。
   if (iconType) {
     return <IconFont type={iconType} size={iconSize ?? size} />;
   }
@@ -75,6 +77,7 @@ const Tooltip = forwardRef<TooltipRef, SparkTooltipProps>(function SparkTooltip(
       arrow={arrow ?? false}
       classNames={{
         ...tooltipClassNames,
+        // AntD 5 已废弃 overlayClassName；映射到 classNames.root 保持兼容且不再报警。
         root: classNames(tooltipClassNames?.root, overlayClassName, mode === "light" && `${sparkPrefix}-tooltip-light`)
       }}
       getPopupContainer={
@@ -107,6 +110,7 @@ function ConfigProvider({
   const sparkPrefix = prefix ? `${prefix}-spark` : "spark";
 
   useLayoutEffect(() => {
+    // Spark 子组件通过全局 commonConfig 读取 prefix 和 iconfont，这里同步最小必要配置。
     setCommonConfig({
       antPrefix,
       configProviderProps: { ...restProps, prefixCls: antPrefix },
@@ -117,6 +121,7 @@ function ConfigProvider({
   }, [antPrefix, iconfont, prefix, restProps, sparkPrefix]);
 
   return (
+    // 不使用 Spark 原始 ConfigProvider，避免其注册未用组件全局样式并触发 Emotion SSR 提示。
     <AntdConfigProvider {...restProps} prefixCls={antPrefix} wave={{ disabled: true }}>
       <AntdApp className={classNames("spark", className)} style={style}>
         {children}
@@ -133,6 +138,7 @@ const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, SparkButtonProp
   { className, icon, iconSize, iconType, loading, style, tooltipContent, type, ...restProps },
   ref
 ) {
+  // Spark 扩展的按钮类型最终要回落到 AntD 支持的 type。
   const normalizedType: ButtonProps["type"] = type === "primaryLess" ? "primary" : type === "textCompact" ? "link" : type;
   const button = (
     <AntdButton
@@ -158,6 +164,7 @@ const IconButton = forwardRef<HTMLButtonElement | HTMLAnchorElement, SparkIconBu
   const { sparkPrefix = "spark" } = getCommonConfig();
 
   return (
+    // Chat Sender 的操作按钮只依赖 IconButton 的尺寸、边框和点击行为。
     <Button
       className={classNames(className, `${sparkPrefix}-icon-button`)}
       icon={getSizedIcon({ icon, iconSize, iconType, size: restProps.size })}
@@ -173,6 +180,7 @@ const carbonTheme = generateThemeByToken(carbonThemeToken);
 const Tag = SparkTag;
 
 function copy(value: string) {
+  // Spark Chat 的部分动作依赖 copy 导出，统一转发到浏览器剪贴板。
   return navigator.clipboard.writeText(value);
 }
 
