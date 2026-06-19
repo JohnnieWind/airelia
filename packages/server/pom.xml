@@ -2,8 +2,10 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <!-- Maven 项目模型版本，固定为 4.0.0。 -->
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- 继承 Spring Boot 官方父工程，统一管理依赖版本和插件默认配置。 -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -18,24 +20,36 @@
     <description>Local backend API for the Airelia desktop app.</description>
 
     <properties>
+        <!-- 后端代码和 AgentScope Harness 依赖都以 Java 17 为基线。 -->
         <java.version>17</java.version>
+        <!-- AgentScope Harness 版本集中在这里，方便后续升级。 -->
         <agentscope.version>2.0.0-RC2</agentscope.version>
     </properties>
 
     <dependencies>
+        <!-- 提供 Spring MVC、内嵌 Web 容器和 JSON 序列化能力。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- 支持 @Valid 和 @NotBlank 等请求体校验注解。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!-- AgentScope Harness 运行时依赖，RuntimeController 会探测它是否可用。 -->
         <dependency>
             <groupId>io.agentscope</groupId>
             <artifactId>agentscope-harness</artifactId>
             <version>${agentscope.version}</version>
         </dependency>
+        <!-- Lombok 提供 @Slf4j 等编译期注解，运行时不需要随包发布。 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Spring Boot 测试工具，包括 JUnit、MockMvc 和断言支持。 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -45,6 +59,7 @@
 
     <build>
         <plugins>
+            <!-- 打包可执行 Spring Boot 应用。 -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

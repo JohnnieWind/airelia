@@ -1,11 +1,13 @@
 server:
+  # Spring Boot 后端默认监听端口，前端开发代理也指向这里。
   port: 8080
 
 spring:
   application:
+    # 应用名会出现在日志和 Spring 上下文中。
     name: airelia-server
 
 airelia:
   agent:
+    # 当前使用的 Agent 运行时标识，由 RuntimeController 返回给前端。
     runtime: agentscope-harness
-

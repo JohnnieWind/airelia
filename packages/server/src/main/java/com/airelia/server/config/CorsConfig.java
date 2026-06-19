@@ -12,6 +12,7 @@ public class CorsConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
+                // 仅开放本地桌面壳和本地开发服务器访问 API，覆盖 Electron file:// 的 null origin。
                 registry.addMapping("/api/**")
                         .allowedOrigins("null")
                         .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
