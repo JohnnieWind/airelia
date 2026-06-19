@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 import { sparkChatCompat } from "./config/vite/sparkChatCompat";
 
 export default defineConfig({
+  plugins: [sparkChatCompat.plugin],
   resolve: {
     alias: sparkChatCompat.alias
   },
