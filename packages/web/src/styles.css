@@ -65,7 +65,7 @@ body {
 /* 表单控件继承应用字体，避免按钮和输入框出现系统默认字体。 */
 button,
 input {
-  font: inherit;
+  font-family: inherit;
 }
 
 @theme inline {

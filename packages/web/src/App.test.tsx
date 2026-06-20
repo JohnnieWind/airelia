@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import App from "./App";
@@ -90,11 +91,22 @@ describe("App", () => {
   it("renders the composer and best-practice examples", () => {
     render(<App />);
 
+    ["日常办公", "代码开发", "设计创意", "文档处理", "资料调研", "项目推进"].forEach((label) => {
+      expect(screen.getByRole("button", { name: label }).className).toContain("text-[13px]");
+    });
+
     expect(screen.getByPlaceholderText("今天帮你做些什么？ @ 引用对话文件，/ 调用技能与指令")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "选择工作空间" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "选择工作空间" }).className).toContain("text-[10px]");
     expect(screen.getByRole("region", { name: "不知道做什么，试试最佳实践案例" })).toBeInTheDocument();
     expect(screen.getByText("工作总结日报")).toBeInTheDocument();
     expect(screen.getByText("行业研报精读摘要")).toBeInTheDocument();
     expect(screen.getByText("项目数据分析仪表盘")).toBeInTheDocument();
+  });
+
+  it("does not globally override button font-size utilities", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toContain("font-family: inherit;");
+    expect(styles).not.toContain("font: inherit;");
   });
 });

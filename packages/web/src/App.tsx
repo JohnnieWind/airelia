@@ -106,13 +106,13 @@ function App() {
 
               <div className="mb-4 flex w-max max-w-full flex-wrap gap-0 overflow-hidden rounded-[9px] bg-[#eeeeed] sm:mb-12" data-testid="primary-modes">
                 {primaryModes.map((mode) => (
-                  <ModeButton key={mode.label} {...mode} />
+                  <ModeButton key={mode.label} {...mode} textSizeClass="text-[13px]" />
                 ))}
               </div>
 
               <div className="mb-3 flex flex-wrap gap-2 sm:mb-4" data-testid="secondary-modes">
                 {secondaryModes.map((mode) => (
-                  <ModeButton key={mode.label} {...mode} secondary />
+                  <ModeButton key={mode.label} {...mode} secondary textSizeClass={mode.label === "更多" ? "text-xs" : "text-[13px]"} />
                 ))}
               </div>
 
@@ -287,7 +287,7 @@ function Composer() {
         </div>
 
         <button
-          className="flex h-[34px] w-full items-center gap-2 border-t border-[#f0f0ef] bg-[#f5f5f4] px-4 text-left text-[11px] font-semibold text-[#77787c] sm:h-9 sm:px-6 sm:text-xs"
+          className="flex h-[34px] w-full items-center gap-2 border-t border-[#f0f0ef] bg-[#f5f5f4] px-4 text-left text-[10px] font-semibold text-[#77787c] sm:h-9 sm:px-6"
           type="button"
         >
           <Folder className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -325,22 +325,24 @@ function ModeButton({
   label,
   icon: Icon,
   active = false,
-  secondary = false
+  secondary = false,
+  textSizeClass = "text-xs"
 }: {
   label: string;
   icon: typeof Coffee;
   active?: boolean;
   secondary?: boolean;
+  textSizeClass?: string;
 }) {
   const sizingClass = secondary
-    ? "sm:min-h-[34px] sm:gap-1.5 sm:px-3 sm:text-xs"
-    : "sm:min-h-[34px] sm:gap-1 sm:px-2 sm:text-xs";
+    ? "sm:min-h-[34px] sm:gap-1.5 sm:px-3"
+    : "sm:min-h-[34px] sm:gap-1 sm:px-2";
   const iconClass = secondary ? "h-3.5 w-3.5 sm:h-[15px] sm:w-[15px]" : "h-3.5 w-3.5";
 
   return (
     <button
       aria-pressed={active}
-      className={`inline-flex min-h-8 items-center gap-1.5 px-3 text-xs font-bold transition ${sizingClass} ${
+      className={`inline-flex min-h-8 items-center gap-1.5 px-3 ${textSizeClass} font-bold transition ${sizingClass} ${
         active
           ? "rounded-[10px] bg-[#3f4043] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]"
           : secondary
