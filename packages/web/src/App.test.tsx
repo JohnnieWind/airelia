@@ -1,85 +1,100 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import App from "./App";
 
 describe("App", () => {
-  beforeEach(() => {
-    // 每个用例重新安装 fetch mock，避免请求计数或实现互相污染。
-    vi.restoreAllMocks();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((url: string, init?: RequestInit) => {
-        // 模拟后端健康检查接口。
-        if (url.endsWith("/api/health")) {
-          return Promise.resolve(jsonResponse({ status: "ok", service: "airelia-server", timestamp: "now" }));
-        }
-
-        // 模拟 Agent 运行时探测接口。
-        if (url.endsWith("/api/runtime")) {
-          return Promise.resolve(
-            jsonResponse({
-              agentRuntime: "agentscope-harness",
-              javaVersion: "17.0.7",
-              agentScopeHarnessAvailable: true,
-              harnessProbeClass: "io.agentscope.harness.agent.HarnessAgent"
-            })
-          );
-        }
-
-        // 模拟 echo Agent 接口，并确认表单提交使用 POST。
-        if (url.endsWith("/api/agent/echo") && init?.method === "POST") {
-          return Promise.resolve(jsonResponse({ reply: "Airelia agent scaffold received: test", agent: "scaffold-agent", timestamp: "now" }));
-        }
-
-        // 未覆盖的 URL 返回 404，帮助测试暴露意外请求。
-        return Promise.resolve(new Response(null, { status: 404 }));
-      })
-    );
-  });
-
-  it("renders backend and runtime status", async () => {
+  it("renders the Airelia workbench landing page", () => {
     render(<App />);
 
-    // 首屏应能展示后端和运行时两个异步状态卡片。
-    expect(await screen.findByText("airelia-server: ok")).toBeInTheDocument();
-    expect(await screen.findByText("agentscope-harness: ready")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Airelia 你的桌面智能工作台/i })).toBeInTheDocument();
+    expect(screen.getByText("本地 Agent 已连接")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新建任务" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "日常办公" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("renders the ferrofluid background as decorative UI", () => {
+  it("renders sidebar tasks and spaces", () => {
     render(<App />);
 
-    const background = screen.getByTestId("ferrofluid-background");
-
-    expect(background).toBeInTheDocument();
-    expect(background).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("任务 (5)")).toBeInTheDocument();
+    expect(screen.getByText("继续完成未完成任务")).toBeInTheDocument();
+    expect(screen.getByText("空间 (1)")).toBeInTheDocument();
+    expect(screen.getByText("项目新手指引")).toBeInTheDocument();
   });
 
-  it("renders AgentScope Spark Design and Spark Chat surfaces", () => {
+  it("keeps sidebar menu horizontal spacing tight", () => {
     render(<App />);
 
-    expect(screen.getByTestId("spark-ui-surface")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Spark Design action" })).toBeInTheDocument();
-    expect(screen.getByText("Spark Chat preview")).toBeInTheDocument();
+    const sidebar = screen.getByRole("complementary");
+    const primaryNavigation = screen.getByRole("navigation", { name: "主导航" });
+    const newTaskButton = within(primaryNavigation).getByRole("button", { name: "新建任务" });
+    const taskButton = screen.getByRole("button", { name: /继续完成未完成任务/ });
+
+    expect(sidebar.className).toContain("px-1.5");
+    expect(sidebar.className).toContain("sm:px-2.5");
+    expect(sidebar.className).not.toContain("px-2.5 py");
+    expect(sidebar.className).not.toContain("sm:px-5");
+    expect(newTaskButton.className).toContain("px-1");
+    expect(newTaskButton.className).not.toContain("px-2.5");
+    expect(taskButton.className).toContain("px-1");
+    expect(taskButton.className).not.toContain("px-2 ");
   });
 
-  it("sends an agent echo message", async () => {
+  it("aligns sidebar list interactions and space typography", () => {
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Agent message"), { target: { value: "test" } });
-    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    const taskButton = screen.getByRole("button", { name: /继续完成未完成任务/ });
+    const guideButton = screen.getByRole("button", { name: /项目新手指引/ });
+    const guideLabel = within(guideButton).getByTestId("space-guide-label");
+    const generatedIntro = screen.getByText("生成项目功能介绍");
+    const taskTitle = within(taskButton).getByTestId("recent-task-title");
+    const taskTime = within(taskButton).getByText("2天前");
+    const taskList = taskButton.parentElement;
 
-    // 表单提交后应展示后端返回的 Agent 回复内容。
-    await waitFor(() => {
-      expect(screen.getByText("Airelia agent scaffold received: test")).toBeInTheDocument();
-    });
+    expect(taskList?.className).toContain("gap-0");
+    expect(taskList?.className).not.toContain("gap-2");
+    expect(taskButton.className).toContain("cursor-pointer");
+    expect(taskButton.className).toContain("gap-0");
+    expect(taskButton.className).toContain("py-1");
+    expect(taskButton.className).not.toContain("gap-1.5");
+    expect(taskButton.className).not.toContain("sm:gap-2");
+    expect(taskButton.className).toContain("hover:bg-[#e7e7e5]");
+    expect(taskTitle.className).toContain("text-[12px]");
+    expect(taskTime.className).toContain("text-[12px]");
+    expect(guideLabel.className).toBe(generatedIntro.className);
+  });
+
+  it("keeps the primary sidebar navigation compact on desktop", () => {
+    render(<App />);
+
+    const primaryNavigation = screen.getByRole("navigation", { name: "主导航" });
+    const newTaskButton = within(primaryNavigation).getByRole("button", { name: "新建任务" });
+    const newTaskLabel = within(newTaskButton).getByTestId("primary-nav-label");
+
+    expect(primaryNavigation.className).toContain("gap-px");
+    expect(primaryNavigation.className).not.toContain("gap-0");
+    expect(primaryNavigation.className).not.toContain("gap-1");
+    expect(newTaskButton.className).toContain("min-h-7");
+    expect(newTaskButton.className).toContain("grid-cols-[14px_minmax(0,1fr)_auto]");
+    expect(newTaskButton.className).toContain("gap-2");
+    expect(newTaskButton.className).toContain("px-1");
+    expect(newTaskButton.className).toContain("leading-none");
+    expect(newTaskLabel.className).toContain("text-[14px]");
+    expect(newTaskLabel.className).toContain("font-normal");
+    expect(newTaskLabel.className).toContain("leading-none");
+    expect(newTaskLabel.className).not.toContain("text-[7px]");
+    expect(newTaskButton.className).not.toContain("font-semibold");
+    expect(newTaskButton.className).not.toContain("sm:text-xs");
+  });
+
+  it("renders the composer and best-practice examples", () => {
+    render(<App />);
+
+    expect(screen.getByPlaceholderText("今天帮你做些什么？ @ 引用对话文件，/ 调用技能与指令")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "选择工作空间" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "不知道做什么，试试最佳实践案例" })).toBeInTheDocument();
+    expect(screen.getByText("工作总结日报")).toBeInTheDocument();
+    expect(screen.getByText("行业研报精读摘要")).toBeInTheDocument();
+    expect(screen.getByText("项目数据分析仪表盘")).toBeInTheDocument();
   });
 });
-
-// 构造带 JSON 响应头的 Response，复用在多个接口 mock 中。
-function jsonResponse(body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { "Content-Type": "application/json" }
-  });
-}
