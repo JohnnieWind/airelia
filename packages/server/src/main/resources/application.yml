@@ -11,3 +11,8 @@ airelia:
   agent:
     # 当前使用的 Agent 运行时标识，由 RuntimeController 返回给前端。
     runtime: agentscope-harness
+    test:
+      # /api/agent/test 使用的临时模型配置；真实密钥只通过环境变量或本地未提交配置提供。
+      base-url: ${AIRELIA_AGENT_TEST_BASE_URL:https://api.minimaxi.com/v1}
+      model-name: ${AIRELIA_AGENT_TEST_MODEL_NAME:MiniMax-M3}
+      api-key: ${AIRELIA_AGENT_TEST_API_KEY:}

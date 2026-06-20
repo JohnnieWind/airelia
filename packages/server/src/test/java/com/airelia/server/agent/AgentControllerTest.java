@@ -37,4 +37,12 @@ class AgentControllerTest {
 
         assertThat(output).contains("Handling POST /api/agent/echo");
     }
+
+    @Test
+    void rejectsAgentTestStreamWhenModelKeyIsNotConfigured() throws Exception {
+        mockMvc.perform(post("/api/agent/test")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sessionId\":\"test-session\",\"userId\":\"test-user\",\"message\":\"hello\"}"))
+                .andExpect(status().isServiceUnavailable());
+    }
 }
