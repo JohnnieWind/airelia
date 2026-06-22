@@ -13,9 +13,21 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.getByRole("heading", { name: /Airelia 你的桌面智能工作台/i })).toBeInTheDocument();
-    expect(screen.getByText("本地 Agent 已连接")).toBeInTheDocument();
+    expect(screen.queryByText("本地 Agent 已连接")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "新建任务" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "日常办公" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("renders content pages full screen without an outer frame", () => {
+    render(<App />);
+
+    const appContent = screen.getByTestId("app-content");
+
+    expect(appContent.className).toContain("h-screen");
+    expect(appContent.className).toContain("p-0");
+    expect(appContent.className).not.toContain("px-4");
+    expect(appContent.className).not.toContain("py-3");
+    expect(screen.queryByText("本地 Agent 已连接")).not.toBeInTheDocument();
   });
 
   it("renders sidebar tasks and spaces", () => {
@@ -127,7 +139,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "助理" }));
 
     expect(screen.getByRole("heading", { name: "助理对话" })).toBeInTheDocument();
-    expect(screen.getByText("Spark Design Chat")).toBeInTheDocument();
+    expect(screen.queryByText("Spark Design Chat")).not.toBeInTheDocument();
     expect(screen.getByText("等待输入")).toBeInTheDocument();
 
     const input = screen.getByPlaceholderText("今天想让助理做什么？");
@@ -208,8 +220,11 @@ describe("App", () => {
     const scrollList = document.querySelector("#agent-chat-scroll-list");
     const composer = screen.getByTestId("agent-chat-composer");
 
+    expect(screen.getByTestId("agent-chat-page").className).toContain("max-w-none");
     expect(chatPanel.className).toContain("min-h-0");
     expect(chatPanel.className).toContain("overflow-hidden");
+    expect(chatPanel.className).not.toContain("rounded");
+    expect(chatPanel.className).not.toContain("border ");
     expect(scrollRegion.className).toContain("min-h-0");
     expect(scrollRegion.className).toContain("flex-1");
     expect(scrollRegion.className).toContain("overflow-hidden");

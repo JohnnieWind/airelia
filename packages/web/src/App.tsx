@@ -18,7 +18,6 @@ import {
   Palette,
   PanelLeft,
   Plus,
-  Rocket,
   Search,
   Send,
   Share2,
@@ -87,20 +86,7 @@ function App() {
       <div className="grid h-screen grid-cols-[clamp(136px,22.8vw,264px)_minmax(0,1fr)] overflow-hidden">
         <Sidebar activeNav={activeNav} onSelectNav={setActiveNav} />
 
-        <section className="relative flex h-screen min-h-0 flex-col overflow-hidden px-4 py-3 sm:px-6 lg:px-5 2xl:px-7">
-          <div className="flex justify-start lg:justify-end">
-            <button
-              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#e8e8e6] bg-white px-2.5 pr-3 text-[13px] font-bold shadow-[0_2px_12px_rgba(0,0,0,0.04)] transition hover:border-[#d7d7d4]"
-              type="button"
-            >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#18c89a] text-white">
-                <Rocket className="h-3.5 w-3.5" />
-              </span>
-              本地 Agent 已连接
-              <ChevronRight className="h-3.5 w-3.5 text-[#77787c]" />
-            </button>
-          </div>
-
+        <section className="relative flex h-screen min-h-0 flex-col overflow-hidden p-0" data-testid="app-content">
           {activeNav === "测试" ? <TestPage/> : (activeNav === "助理" ? <AgentChatPage /> : <WorkbenchHome />)}
         </section>
       </div>

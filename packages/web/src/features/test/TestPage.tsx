@@ -68,7 +68,7 @@ function TestPage() {
   }, []);
 
   return (
-    <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-[#e4e4e2] bg-white">
+    <div className="h-full min-h-0 flex-1 overflow-hidden bg-white" data-testid="test-page">
       <ChatAnywhere
         cardConfig={DefaultCards}
         onInput={{

@@ -201,14 +201,11 @@ function AgentChatPage() {
     <ConfigProvider {...carbonTheme} prefix="spark-chat" prefixCls="spark-chat">
       <section
         aria-labelledby="assistant-chat-title"
-        className="mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-1 flex-col pb-3 pt-4"
+        className="flex h-full min-h-0 w-full max-w-none flex-1 flex-col"
+        data-testid="agent-chat-page"
       >
-        <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#e6e7e5] bg-white px-3 py-1 text-xs font-bold text-[#55565a]">
-              <Bot className="h-3.5 w-3.5" />
-              Spark Design Chat
-            </div>
             <h1 id="assistant-chat-title" className="text-[clamp(24px,3vw,34px)] font-extrabold leading-tight tracking-normal">
               助理对话
             </h1>
@@ -220,7 +217,7 @@ function AgentChatPage() {
 
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_286px]">
           <div
-            className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#e5e5e2] bg-white"
+            className="flex min-h-0 flex-col overflow-hidden bg-white"
             data-testid="agent-chat-panel"
           >
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#fafafa]" data-testid="agent-chat-scroll-region">

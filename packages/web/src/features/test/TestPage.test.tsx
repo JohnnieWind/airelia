@@ -28,6 +28,11 @@ describe("TestPage", () => {
 
     render(<TestPage />);
 
+    const testPage = screen.getByTestId("test-page");
+    expect(testPage.className).toContain("h-full");
+    expect(testPage.className).not.toContain("rounded");
+    expect(testPage.className).not.toContain("border ");
+
     const input = screen.getByPlaceholderText("Ask ChatAnywhere");
     fireEvent.change(input, { target: { value: "帮我查看当前文件夹有哪些文件" } });
     fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
@@ -69,6 +74,11 @@ describe("TestPage", () => {
     } as unknown as Response);
 
     render(<TestPage />);
+
+    const testPage = screen.getByTestId("test-page");
+    expect(testPage.className).toContain("h-full");
+    expect(testPage.className).not.toContain("rounded");
+    expect(testPage.className).not.toContain("border ");
 
     const input = screen.getByPlaceholderText("Ask ChatAnywhere");
     fireEvent.change(input, { target: { value: "帮我查看当前文件夹有哪些文件" } });
