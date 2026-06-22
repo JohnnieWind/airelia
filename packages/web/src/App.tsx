@@ -28,15 +28,19 @@ import {
   WandSparkles,
   Workflow
 } from "lucide-react";
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
+import EyeFollower from "./components/EyeFollower.tsx";
+import AgentChatPage from "./features/agent-chat/AgentChatPage";
+import TestPage from "./features/test/TestPage.tsx";
 
 const primaryNav = [
-  { label: "新建任务", icon: MessageCirclePlus, active: true },
+  { label: "新建任务", icon: MessageCirclePlus },
   { label: "助理", icon: Bot },
   { label: "项目", icon: Share2 },
   { label: "专家", icon: BriefcaseBusiness, note: "技能·连接器" },
   { label: "自动化", icon: Workflow },
-  { label: "更多", icon: Grid2X2, note: "资料库·灵感" }
+  { label: "更多", icon: Grid2X2, note: "资料库·灵感" },
+  { label: "测试", icon: Bot }
 ];
 
 const recentTasks = [
@@ -73,11 +77,15 @@ const practiceCards = [
   { title: "项目数据分析仪表盘", tone: "violet" }
 ];
 
+type PrimaryNavLabel = (typeof primaryNav)[number]["label"];
+
 function App() {
+  const [activeNav, setActiveNav] = useState<PrimaryNavLabel>("新建任务");
+
   return (
     <main className="h-screen overflow-hidden bg-[#fbfbfa] text-[#191a1d]">
       <div className="grid h-screen grid-cols-[clamp(136px,22.8vw,264px)_minmax(0,1fr)] overflow-hidden">
-        <Sidebar />
+        <Sidebar activeNav={activeNav} onSelectNav={setActiveNav} />
 
         <section className="relative flex h-screen min-h-0 flex-col overflow-hidden px-4 py-3 sm:px-6 lg:px-5 2xl:px-7">
           <div className="flex justify-start lg:justify-end">
@@ -93,41 +101,53 @@ function App() {
             </button>
           </div>
 
-          <section
-            className="mx-auto flex min-h-0 w-full max-w-[690px] flex-1 flex-col justify-start pb-3 pt-[clamp(24px,6.6vh,52px)] sm:max-w-[750px] lg:max-w-[750px]"
-            data-testid="workbench-grid"
-          >
-            <div className="min-w-0">
-              <h1 className="mb-[22px] text-[clamp(22px,3.1vw,36px)] font-extrabold leading-[1.12] tracking-normal">
-                Airelia
-                <br />
-                你的桌面智能工作台
-              </h1>
-
-              <div className="mb-4 flex w-max max-w-full flex-wrap gap-0 overflow-hidden rounded-[9px] bg-[#eeeeed] sm:mb-12" data-testid="primary-modes">
-                {primaryModes.map((mode) => (
-                  <ModeButton key={mode.label} {...mode} textSizeClass="text-[13px]" />
-                ))}
-              </div>
-
-              <div className="mb-3 flex flex-wrap gap-2 sm:mb-4" data-testid="secondary-modes">
-                {secondaryModes.map((mode) => (
-                  <ModeButton key={mode.label} {...mode} secondary textSizeClass={mode.label === "更多" ? "text-xs" : "text-[13px]"} />
-                ))}
-              </div>
-
-              <Composer />
-            </div>
-
-            <PracticeExamples />
-          </section>
+          {activeNav === "测试" ? <TestPage/> : (activeNav === "助理" ? <AgentChatPage /> : <WorkbenchHome />)}
         </section>
       </div>
     </main>
   );
 }
 
-function Sidebar() {
+function WorkbenchHome() {
+  return (
+    <section
+      className="mx-auto flex min-h-0 w-full max-w-[690px] flex-1 flex-col justify-start pb-3 pt-[clamp(24px,6.6vh,52px)] sm:max-w-[750px] lg:max-w-[750px]"
+      data-testid="workbench-grid"
+    >
+      <div className="min-w-0">
+        <h1 className="mb-[22px] text-[clamp(22px,3.1vw,36px)] font-extrabold leading-[1.12] tracking-normal">
+          Airelia
+          <br />
+          你的桌面智能工作台
+        </h1>
+
+        <div className="mb-4 flex w-max max-w-full flex-wrap gap-0 overflow-hidden rounded-[9px] bg-[#eeeeed] sm:mb-12" data-testid="primary-modes">
+          {primaryModes.map((mode) => (
+            <ModeButton key={mode.label} {...mode} textSizeClass="text-[13px]" />
+          ))}
+        </div>
+
+        <div className="mb-3 flex flex-wrap gap-2 sm:mb-4" data-testid="secondary-modes">
+          {secondaryModes.map((mode) => (
+            <ModeButton key={mode.label} {...mode} secondary textSizeClass={mode.label === "更多" ? "text-xs" : "text-[13px]"} />
+          ))}
+        </div>
+
+        <Composer />
+      </div>
+
+      <PracticeExamples />
+    </section>
+  );
+}
+
+function Sidebar({
+  activeNav,
+  onSelectNav
+}: {
+  activeNav: PrimaryNavLabel;
+  onSelectNav: (label: PrimaryNavLabel) => void;
+}) {
   return (
     <aside className="grid h-screen min-h-0 grid-rows-[auto_auto_auto_1fr_auto] gap-3.5 overflow-hidden bg-[#eeeeee] px-1.5 py-3.5 sm:gap-[18px] sm:px-2.5 sm:py-5 lg:gap-[18px] lg:px-2.5 lg:py-5">
       <div className="flex items-center justify-between text-[#424346]">
@@ -157,14 +177,16 @@ function Sidebar() {
       <nav aria-label="主导航" className="grid gap-px">
         {primaryNav.map((item) => {
           const Icon = item.icon;
+          const active = item.label === activeNav;
 
           return (
             <button
               key={item.label}
-              aria-current={item.active ? "page" : undefined}
+              aria-current={active ? "page" : undefined}
               className={`grid min-h-7 grid-cols-[14px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-1 text-left text-[9px] font-medium leading-none transition ${
-                item.active ? "bg-[#e2e2e1] text-[#1c1d20]" : "text-[#55565a] hover:bg-[#e7e7e5]"
+                active ? "bg-[#e2e2e1] text-[#1c1d20]" : "text-[#55565a] hover:bg-[#e7e7e5]"
               }`}
+              onClick={() => onSelectNav(item.label)}
               type="button"
             >
               <Icon className="h-[13px] w-[13px]" />
@@ -238,10 +260,7 @@ function Composer() {
   return (
     <div className="relative">
       <div className="pointer-events-none absolute right-6 top-[-70px] hidden h-[82px] w-[104px] overflow-hidden sm:block">
-        <span className="absolute left-11 top-1 flex h-5 w-5 items-center justify-center rounded-full border-[3px] border-white bg-[#18c89a] shadow-[0_8px_22px_rgba(24,200,154,0.35)]">
-          <Sparkles className="h-3 w-3 text-white" />
-        </span>
-        <span className="absolute left-3 top-10 h-[76px] w-[76px] rounded-[28px] bg-[radial-gradient(circle_at_50%_52%,#32ffe0_0_4%,transparent_5%),radial-gradient(circle_at_38%_48%,#28f2d3_0_4%,transparent_5%),linear-gradient(180deg,#31343a,#0e1118)] shadow-[0_10px_24px_rgba(0,0,0,0.18)]" />
+        <EyeFollower />
       </div>
 
       <section className="overflow-hidden rounded-[15px] border border-[#dddddb] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.045)]">

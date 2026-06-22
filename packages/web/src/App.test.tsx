@@ -1,10 +1,14 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 
 describe("App", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders the Airelia workbench landing page", () => {
     render(<App />);
 
@@ -101,6 +105,159 @@ describe("App", () => {
     expect(screen.getByText("工作总结日报")).toBeInTheDocument();
     expect(screen.getByText("行业研报精读摘要")).toBeInTheDocument();
     expect(screen.getByText("项目数据分析仪表盘")).toBeInTheDocument();
+  });
+
+  it("opens the assistant chat from the sidebar and sends messages to the test agent API", async () => {
+    const encoder = new TextEncoder();
+    let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "text/event-stream;charset=UTF-8"
+      },
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          streamController = controller;
+        }
+      })
+    } as unknown as Response);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "助理" }));
+
+    expect(screen.getByRole("heading", { name: "助理对话" })).toBeInTheDocument();
+    expect(screen.getByText("Spark Design Chat")).toBeInTheDocument();
+    expect(screen.getByText("等待输入")).toBeInTheDocument();
+
+    const input = screen.getByPlaceholderText("今天想让助理做什么？");
+    fireEvent.change(input, { target: { value: "查看当前目录文件" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/agent/test",
+        expect.objectContaining({
+          body: JSON.stringify({
+            sessionId: "1",
+            userId: "user001",
+            message: "查看当前目录文件"
+          }),
+          method: "POST"
+        })
+      );
+    });
+
+    expect(screen.getAllByText("查看当前目录文件").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("正在调用本地测试 Agent")).toBeInTheDocument();
+
+    streamController?.enqueue(
+      encoder.encode('event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","blockId":"thinking","delta":"先确认目录结构。"}\n\n')
+    );
+
+    expect(await screen.findByText("Deep thinking")).toBeInTheDocument();
+    expect(await screen.findByText("先确认目录结构。")).toBeInTheDocument();
+
+    streamController?.enqueue(
+      encoder.encode('event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","blockId":"thinking","delta":"继续读取文件列表。"}\n\n')
+    );
+
+    expect(await screen.findByText("先确认目录结构。继续读取文件列表。")).toBeInTheDocument();
+
+    streamController?.enqueue(
+      encoder.encode(
+        [
+          'event:TOOL_CALL_START\ndata:{"type":"TOOL_CALL_START","toolCallId":"call_1","toolCallName":"list_files"}',
+          'event:TOOL_CALL_DELTA\ndata:{"type":"TOOL_CALL_DELTA","toolCallId":"call_1","delta":"{\\"path\\":\\".\\"}"}',
+          'event:TOOL_RESULT_END\ndata:{"type":"TOOL_RESULT_END","toolCallId":"call_1","result":{"files":["README.md","packages","docs"]}}'
+        ].join("\n\n") + "\n\n"
+      )
+    );
+
+    expect(await screen.findByText("list_files")).toBeInTheDocument();
+    expect(screen.getByText("Input")).toBeInTheDocument();
+    expect(screen.getByText("Output")).toBeInTheDocument();
+
+    streamController?.enqueue(
+      encoder.encode(
+        [
+          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","delta":"当前目录包含 **README.md**、"}',
+          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","delta":"packages 和 docs。<script>bad()</script>"}'
+        ].join("\n\n") + "\n\n"
+      )
+    );
+    streamController?.close();
+
+    expect(await screen.findByText("README.md")).toBeInTheDocument();
+    expect(screen.getByText("README.md").tagName).toBe("STRONG");
+    expect(screen.getByText(/packages 和 docs/)).toBeInTheDocument();
+    expect(document.querySelector("script")).not.toBeInTheDocument();
+    expect(screen.getByText("完成")).toBeInTheDocument();
+    expect(input).toHaveValue("");
+  });
+
+  it("keeps assistant chat content scrollable while the composer stays fixed", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "助理" }));
+
+    const chatPanel = screen.getByTestId("agent-chat-panel");
+    const scrollRegion = screen.getByTestId("agent-chat-scroll-region");
+    const scrollList = document.querySelector("#agent-chat-scroll-list");
+    const composer = screen.getByTestId("agent-chat-composer");
+
+    expect(chatPanel.className).toContain("min-h-0");
+    expect(chatPanel.className).toContain("overflow-hidden");
+    expect(scrollRegion.className).toContain("min-h-0");
+    expect(scrollRegion.className).toContain("flex-1");
+    expect(scrollRegion.className).toContain("overflow-hidden");
+    expect(scrollList?.className).toContain("h-full");
+    expect(scrollList?.className).toContain("overflow-y-auto");
+    expect(composer.className).toContain("sticky");
+    expect(composer.className).toContain("bottom-0");
+    expect(composer.className).toContain("shrink-0");
+    expect(scrollRegion.contains(composer)).toBe(false);
+  });
+
+  it("stops generating when the agent end event arrives before the HTTP stream closes", async () => {
+    const encoder = new TextEncoder();
+    let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "text/event-stream;charset=UTF-8"
+      },
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          streamController = controller;
+        }
+      })
+    } as unknown as Response);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "助理" }));
+
+    const input = screen.getByPlaceholderText("今天想让助理做什么？");
+    fireEvent.change(input, { target: { value: "结束后停止" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+    await screen.findByText("正在调用本地测试 Agent");
+
+    streamController?.enqueue(
+      encoder.encode(
+        [
+          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","delta":"已经完成。"}',
+          'event:AGENT_END\ndata:{"type":"AGENT_END"}'
+        ].join("\n\n") + "\n\n"
+      )
+    );
+
+    expect(await screen.findByText("已经完成。")).toBeInTheDocument();
+    expect(await screen.findByText("完成")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(input).not.toHaveAttribute("disabled");
+    });
   });
 
   it("does not globally override button font-size utilities", () => {
