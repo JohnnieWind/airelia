@@ -92,6 +92,7 @@ describe("TestPage", () => {
     expect(screen.queryByText((_, element) => element?.textContent === "当前目录包含 packages。")).not.toBeInTheDocument();
     expect(screen.queryByText("Agent 执行")).not.toBeInTheDocument();
     expect(screen.queryByText("模型调用")).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "AI 回复生成中" })).toBeInTheDocument();
 
     controller?.enqueue(
       encoder.encode(
@@ -137,6 +138,7 @@ describe("TestPage", () => {
     const secondTextCard = await screen.findByText("第二段回复。");
 
     expect(secondTextCard).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "AI 回复生成中" })).not.toBeInTheDocument();
     expect(await screen.findByText("thinking")).toBeInTheDocument();
     expect(await screen.findByText("verify")).toBeInTheDocument();
     const thinkingHeaders = screen.getAllByText("深度思考");

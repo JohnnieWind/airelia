@@ -28,6 +28,23 @@ describe("createAgentResponseCards", () => {
     expect(screen.getByText("Agent 执行")).toBeInTheDocument();
     expect(screen.getByText("模型调用")).toBeInTheDocument();
   });
+
+  it("keeps the loading indicator while card-based responses are generating", () => {
+    renderCards(
+      createAgentResponseCards({
+        ...createRuntimeOperationMessage(),
+        status: "generating"
+      })
+    );
+
+    expect(screen.getByRole("status", { name: "AI 回复生成中" })).toBeInTheDocument();
+  });
+
+  it("removes the loading indicator after the response finishes", () => {
+    renderCards(createAgentResponseCards(createRuntimeOperationMessage()));
+
+    expect(screen.queryByRole("status", { name: "AI 回复生成中" })).not.toBeInTheDocument();
+  });
 });
 
 function createRuntimeOperationMessage(): AgentResponseCardMessage {

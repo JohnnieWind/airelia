@@ -1,4 +1,4 @@
-import { Markdown, OperateCard, TodoList } from "@agentscope-ai/chat";
+import { Markdown, OperateCard, TodoList, useProviderContext } from "@agentscope-ai/chat";
 import type { TMessage } from "@agentscope-ai/chat";
 import { CheckCircle2, Clock3, TerminalSquare, XCircle } from "lucide-react";
 import type { FC } from "react";
@@ -71,6 +71,10 @@ type MarkdownCardData = {
   generating: boolean;
 };
 
+type StreamLoadingCardData = {
+  label: string;
+};
+
 export function createAgentResponseCards(message: AgentResponseCardMessage): AgentResponseCards {
   const displayConfig = resolveAgentResponseCardDisplayConfig(message.displayConfig);
 
@@ -109,6 +113,7 @@ export function createAgentResponseCards(message: AgentResponseCardMessage): Age
   }
 
   appendTextCard(cards, message);
+  appendStreamLoadingCard(cards, message);
 
   return cards;
 }
@@ -241,6 +246,21 @@ function appendTextBlockCard(
   });
 }
 
+function appendStreamLoadingCard(cards: AgentResponseCards, message: AgentResponseCardMessage) {
+  if (message.status !== "generating") {
+    return;
+  }
+
+  cards.push({
+    code: "StreamLoading",
+    id: `${message.id}-stream-loading`,
+    data: {
+      label: "AI 回复生成中"
+    } satisfies StreamLoadingCardData,
+    component: StreamLoadingCard as FC
+  });
+}
+
 export function createAgentResponseCardsFromSnapshot(
   messageId: string,
   snapshot: AgentStreamSnapshot,
@@ -355,6 +375,8 @@ function createAgentResponseCardsInEventOrder(
       }
     }
   }
+
+  appendStreamLoadingCard(cards, message);
 
   return cards;
 }
@@ -583,6 +605,20 @@ function TodoCard({ data }: { data: TodoCardData }) {
 
 function MarkdownCard({ data }: { data: MarkdownCardData }) {
   return <Markdown content={data.content} allowHtml={false} disableImage={true} cursor={data.generating} />;
+}
+
+function StreamLoadingCard({ data }: { data: StreamLoadingCardData }) {
+  const { getPrefixCls } = useProviderContext();
+  const prefixCls = getPrefixCls("bubble-loading");
+
+  return (
+    <div aria-label={data.label} aria-live="polite" className={prefixCls} role="status">
+      <div className={`${prefixCls}-dot1`} />
+      <div className={`${prefixCls}-dot2`} />
+      <div className={`${prefixCls}-dot3`} />
+      <div className={`${prefixCls}-text`}>-</div>
+    </div>
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
