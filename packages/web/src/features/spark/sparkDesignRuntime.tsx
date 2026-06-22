@@ -3,9 +3,16 @@ import generateTheme from "@agentscope-ai/design/lib/antd/themes/generateTheme";
 import generateThemeByToken from "@agentscope-ai/design/lib/antd/themes/generateThemeByToken";
 import IconFont from "@agentscope-ai/design/lib/components/commonComponents/IconFont";
 import SparkTag from "@agentscope-ai/design/lib/components/commonComponents/Tag";
+import SparkVideo from "@agentscope-ai/design/lib/components/commonComponents/Video";
 import { getCommonConfig, setCommonConfig, useCommonConfig } from "@agentscope-ai/design/lib/config";
 import type { ButtonProps, ConfigProviderProps, TooltipProps } from "antd";
-import { App as AntdApp, Button as AntdButton, ConfigProvider as AntdConfigProvider, Tooltip as AntdTooltip } from "antd";
+import {
+  App as AntdApp,
+  Button as AntdButton,
+  ConfigProvider as AntdConfigProvider,
+  Popover as AntdPopover,
+  Tooltip as AntdTooltip
+} from "antd";
 import type { TooltipRef } from "antd/es/tooltip";
 import classNames from "classnames";
 import { useLayoutEffect } from "react";
@@ -34,6 +41,14 @@ type SparkConfigProviderProps = ConfigProviderProps & {
   iconfont?: string;
   prefix?: string;
   style?: React.CSSProperties;
+};
+
+type CodeBlockProps = {
+  className?: string;
+  language: string | string[];
+  readOnly?: boolean;
+  theme?: "dark" | "light";
+  value?: string;
 };
 
 function getSizedIcon({
@@ -177,7 +192,33 @@ const IconButton = forwardRef<HTMLButtonElement | HTMLAnchorElement, SparkIconBu
 });
 
 const carbonTheme = generateThemeByToken(carbonThemeToken);
+const Popover = AntdPopover;
 const Tag = SparkTag;
+const Video = SparkVideo;
+const CodeBlockLangExtensionsMap: Record<string, unknown[]> = {
+  css: [],
+  curl: [],
+  go: [],
+  html: [],
+  java: [],
+  javascript: [],
+  json: [],
+  jsx: [],
+  markdown: [],
+  php: [],
+  python: [],
+  yaml: []
+};
+
+function CodeBlock({ className, language, value = "" }: CodeBlockProps) {
+  const lang = Array.isArray(language) ? language.join(", ") : language;
+
+  return (
+    <pre className={classNames("rounded-md bg-[#f4f4f2] p-3 text-xs leading-relaxed", className)}>
+      <code data-language={lang}>{value}</code>
+    </pre>
+  );
+}
 
 function copy(value: string) {
   // Spark Chat 的部分动作依赖 copy 导出，统一转发到浏览器剪贴板。
@@ -186,10 +227,14 @@ function copy(value: string) {
 
 export {
   Button,
+  CodeBlock,
+  CodeBlockLangExtensionsMap,
   ConfigProvider,
   IconButton,
+  Popover,
   Tag,
   Tooltip,
+  Video,
   carbonTheme,
   copy,
   generateTheme,

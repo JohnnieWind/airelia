@@ -1,5 +1,25 @@
 import { ConfigProvider } from "@agentscope-ai/design";
+import { Accordion } from "@agentscope-ai/chat/lib/Accordion";
+import DeepThinking from "@agentscope-ai/chat/lib/Accordion/DeepThinking";
+import Attachments from "@agentscope-ai/chat/lib/Attachments";
+import Bubble from "@agentscope-ai/chat/lib/Bubble";
+import ChatAnywhere, {
+  useChatAnywhere,
+  useInput,
+  useMessages,
+  useSessionList,
+  uuid
+} from "@agentscope-ai/chat/lib/ChatAnywhere";
+import Conversations from "@agentscope-ai/chat/lib/Conversations";
+import * as SparkDefaultCards from "@agentscope-ai/chat/lib/DefaultCards";
+import Disclaimer from "@agentscope-ai/chat/lib/Disclaimer";
+import OperateCard from "@agentscope-ai/chat/lib/OperateCard";
+import SparkMarkdown, { type MarkdownProps as SparkMarkdownProps } from "@agentscope-ai/chat/lib/Markdown";
+import Sender from "@agentscope-ai/chat/lib/Sender";
+import sleep from "@agentscope-ai/chat/lib/Util/sleep";
+import { Thinking, ToolCall } from "@agentscope-ai/chat/lib/OperateCard/preset";
 import React, { createContext, useContext, useMemo } from "react";
+import type { ChatAnywhereRef, TMessage, TSession } from "@agentscope-ai/chat/lib/ChatAnywhere";
 
 // Spark Chat 子模块会从父级入口读取 Provider/Markdown 等运行时对象；这里提供最小可用实现。
 interface SparkChatProviderProps {
@@ -10,25 +30,33 @@ interface SparkChatProviderProps {
   };
 }
 
-interface MarkdownProps {
-  content?: React.ReactNode;
-  cursor?: boolean;
-  className?: string;
-  style?: React.CSSProperties;
+interface BeforeUIContainerProps {
+  leftChildren?: React.ReactNode;
+  rightChildren?: React.ReactNode;
 }
+
+type ChatInputType = typeof Sender & {
+  BeforeUIContainer: (props: BeforeUIContainerProps) => React.ReactElement;
+};
 
 const CustomCardsContext = createContext<SparkChatProviderProps["cardConfig"]>({});
 const GlobalContext = createContext<Pick<SparkChatProviderProps, "markdown">>({});
-const chatAnywhereContext = {
-  // 当前页面只做本地预览，不接入 ChatAnywhere 输入总线，保留空实现满足组件依赖。
-  onInput: (_value: string) => undefined
-};
+
+function CustomCardsProvider({
+  cardConfig,
+  children
+}: {
+  cardConfig?: SparkChatProviderProps["cardConfig"];
+  children: React.ReactNode;
+}) {
+  return <CustomCardsContext.Provider value={cardConfig}>{children}</CustomCardsContext.Provider>;
+}
 
 // 保留 Spark Chat 的上下文形状，让 Bubble/Sender/Welcome 可以按官方组件方式运行。
 function SparkChatProvider({ children, cardConfig = {}, markdown }: SparkChatProviderProps) {
   return (
     <GlobalContext.Provider value={{ markdown }}>
-      <CustomCardsContext.Provider value={cardConfig}>{children}</CustomCardsContext.Provider>
+      <CustomCardsProvider cardConfig={cardConfig}>{children}</CustomCardsProvider>
     </GlobalContext.Provider>
   );
 }
@@ -41,38 +69,67 @@ function useProviderContext() {
 function useCustomCardsContext() {
   const cardConfig = useContext(CustomCardsContext);
 
-  return useMemo(() => cardConfig ?? {}, [cardConfig]);
+  return useMemo(() => ({ ...SparkDefaultCards, ...cardConfig }), [cardConfig]);
 }
 
 function useGlobalContext() {
   return useContext(GlobalContext);
 }
 
-function useChatAnywhere<T>(selector?: (value: typeof chatAnywhereContext) => T) {
-  return selector ? selector(chatAnywhereContext) : chatAnywhereContext;
+
+function Markdown({ allowHtml = false, disableImage = true, ...props }: SparkMarkdownProps) {
+  return <SparkMarkdown {...props} allowHtml={allowHtml} disableImage={disableImage} />;
 }
 
-function Markdown({ className, content, cursor, style }: MarkdownProps) {
-  // 默认 Markdown 组件会注入较重样式；本页预览只需要纯文本和生成光标。
+function Mermaid({ content }: { content?: string }) {
+  return content ? <pre>{content}</pre> : null;
+}
+
+const DefaultCards = SparkDefaultCards;
+const ChatInput = Sender as ChatInputType;
+
+ChatInput.BeforeUIContainer = function BeforeUIContainer({
+  leftChildren,
+  rightChildren
+}: BeforeUIContainerProps) {
   return (
-    <span className={className} style={style}>
-      {content}
-      {cursor ? " ..." : null}
-    </span>
+    <div className="mb-2 flex items-center justify-between gap-3 px-1 text-xs font-medium text-[#686a70]">
+      <div className="min-w-0">{leftChildren}</div>
+      <div className="min-w-0">{rightChildren}</div>
+    </div>
   );
-}
-
-const DefaultCards = {};
+};
 
 export default SparkChatProvider;
+export type { ChatAnywhereRef, TMessage, TSession };
 export {
+  Accordion,
+  Attachments,
+  Bubble,
+  ChatInput,
+  ChatAnywhere,
+  Conversations,
   CustomCardsContext,
+  CustomCardsProvider,
   DefaultCards,
+  DeepThinking,
+  DeepThinking as DeepThink,
+  Disclaimer,
   GlobalContext,
   Markdown,
+  Mermaid,
+  OperateCard,
   SparkChatProvider,
+  Sender,
+  Thinking,
+  ToolCall,
+  sleep,
   useChatAnywhere,
   useCustomCardsContext,
   useGlobalContext,
-  useProviderContext
+  useInput,
+  useMessages,
+  useProviderContext,
+  useSessionList,
+  uuid
 };
