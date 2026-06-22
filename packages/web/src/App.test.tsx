@@ -156,27 +156,29 @@ describe("App", () => {
     );
 
     expect(await screen.findByText("深度思考")).toBeInTheDocument();
-    expect(await screen.findByText("先确认目录结构。")).toBeInTheDocument();
+    expect(screen.queryByText("先确认目录结构。")).not.toBeInTheDocument();
 
     streamController?.enqueue(
       encoder.encode('event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","blockId":"thinking","delta":"继续读取文件列表。"}\n\n')
     );
 
-    expect(await screen.findByText("先确认目录结构。继续读取文件列表。")).toBeInTheDocument();
+    expect(screen.queryByText("先确认目录结构。继续读取文件列表。")).not.toBeInTheDocument();
 
     streamController?.enqueue(
       encoder.encode(
         [
-          'event:TOOL_CALL_START\ndata:{"type":"TOOL_CALL_START","toolCallId":"call_1","toolCallName":"list_files"}',
-          'event:TOOL_CALL_DELTA\ndata:{"type":"TOOL_CALL_DELTA","toolCallId":"call_1","delta":"{\\"path\\":\\".\\"}"}',
+          'event:TOOL_CALL_START\ndata:{"type":"TOOL_CALL_START","toolCallId":"call_1","toolCallName":"read_file"}',
+          'event:TOOL_CALL_DELTA\ndata:{"type":"TOOL_CALL_DELTA","toolCallId":"call_1","delta":"{\\"path\\":\\"README.md\\"}"}',
           'event:TOOL_RESULT_END\ndata:{"type":"TOOL_RESULT_END","toolCallId":"call_1","result":{"files":["README.md","packages","docs"]}}'
         ].join("\n\n") + "\n\n"
       )
     );
 
-    expect(await screen.findByText("list_files")).toBeInTheDocument();
-    expect(screen.getByText("Input")).toBeInTheDocument();
-    expect(screen.getByText("Output")).toBeInTheDocument();
+    expect(await screen.findByText("读取文件")).toBeInTheDocument();
+    expect(await screen.findByText("call_1")).toBeInTheDocument();
+    expect(screen.queryByText("Input")).not.toBeInTheDocument();
+    expect(screen.queryByText("Output")).not.toBeInTheDocument();
+    expect(screen.queryByText("README.md")).not.toBeInTheDocument();
 
     streamController?.enqueue(
       encoder.encode(
@@ -302,14 +304,14 @@ describe("App", () => {
     );
 
     expect(await screen.findByText("知识库检索")).toBeInTheDocument();
-    expect(await screen.findByText("README")).toBeInTheDocument();
-    expect(await screen.findByText("Airelia desktop app")).toBeInTheDocument();
     expect(await screen.findByText("联网搜索")).toBeInTheDocument();
-    expect(await screen.findByText("Transformer 登上 Nature")).toBeInTheDocument();
     expect(await screen.findByText("Task List")).toBeInTheDocument();
-    expect(await screen.findByText("查看当前目录")).toBeInTheDocument();
     expect(await screen.findByText("读取目录")).toBeInTheDocument();
-    expect(await screen.findByText("path")).toBeInTheDocument();
+    expect(screen.queryByText("README")).not.toBeInTheDocument();
+    expect(screen.queryByText("Airelia desktop app")).not.toBeInTheDocument();
+    expect(screen.queryByText("Transformer 登上 Nature")).not.toBeInTheDocument();
+    expect(screen.queryByText("查看当前目录")).not.toBeInTheDocument();
+    expect(screen.queryByText("path")).not.toBeInTheDocument();
   });
 
   it("does not globally override button font-size utilities", () => {

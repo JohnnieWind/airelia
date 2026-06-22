@@ -87,7 +87,8 @@ describe("TestPage", () => {
       )
     );
 
-    expect(await screen.findByText("先确认当前目录。")).toBeInTheDocument();
+    expect(await screen.findByText("深度思考")).toBeInTheDocument();
+    expect(screen.queryByText("先确认当前目录。")).not.toBeInTheDocument();
     expect(screen.queryByText((_, element) => element?.textContent === "当前目录包含 packages。")).not.toBeInTheDocument();
 
     controller?.enqueue(
@@ -102,7 +103,9 @@ describe("TestPage", () => {
 
     expect(await screen.findByText("执行命令")).toBeInTheDocument();
     expect(await screen.findByText("ls -la")).toBeInTheDocument();
-    expect(await screen.findByText(/packages/)).toBeInTheDocument();
+    expect(screen.queryByText("Input")).not.toBeInTheDocument();
+    expect(screen.queryByText("Output")).not.toBeInTheDocument();
+    expect(screen.queryByText(/packages/)).not.toBeInTheDocument();
 
     controller?.enqueue(
       encoder.encode(
@@ -110,7 +113,7 @@ describe("TestPage", () => {
       )
     );
 
-    expect(await screen.findByText("再检查工具结果。")).toBeInTheDocument();
+    expect(screen.queryByText("再检查工具结果。")).not.toBeInTheDocument();
 
     controller?.enqueue(
       encoder.encode(
@@ -127,8 +130,6 @@ describe("TestPage", () => {
     controller?.close();
 
     const operationCard = await screen.findByText("Agent 执行");
-    const firstThinkingCard = await screen.findByText("先确认当前目录。");
-    const secondThinkingCard = await screen.findByText("再检查工具结果。");
     const firstToolCallCard = await screen.findByText("ls -la");
     const firstTextCard = await screen.findByText("第一段回复。");
     const secondToolCallCard = await screen.findByText("pwd");
@@ -137,11 +138,12 @@ describe("TestPage", () => {
     expect(secondTextCard).toBeInTheDocument();
     expect(await screen.findByText("thinking")).toBeInTheDocument();
     expect(await screen.findByText("verify")).toBeInTheDocument();
-    expect(screen.getAllByText("深度思考")).toHaveLength(2);
-    expectBefore(operationCard, firstThinkingCard);
-    expectBefore(firstThinkingCard, firstToolCallCard);
-    expectBefore(firstToolCallCard, secondThinkingCard);
-    expectBefore(secondThinkingCard, firstTextCard);
+    const thinkingHeaders = screen.getAllByText("深度思考");
+
+    expect(thinkingHeaders).toHaveLength(2);
+    expectBefore(operationCard, firstToolCallCard);
+    expectBefore(firstToolCallCard, thinkingHeaders[1]);
+    expectBefore(thinkingHeaders[1], firstTextCard);
     expectBefore(firstTextCard, secondToolCallCard);
     expectBefore(secondToolCallCard, secondTextCard);
     expect(consoleErrorMock.mock.calls.flat().join("\n")).not.toContain('unique "key" prop');

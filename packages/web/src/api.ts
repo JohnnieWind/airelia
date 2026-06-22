@@ -682,7 +682,7 @@ function normalizeTodoCard(id: string, data: Record<string, unknown>): AgentTodo
   return {
     id,
     title: getStringField(data, "title"),
-    defaultOpen: typeof data.defaultOpen === "boolean" ? data.defaultOpen : true,
+    defaultOpen: typeof data.defaultOpen === "boolean" ? data.defaultOpen : false,
     list: toRecordArray(data.list).map((item) => ({
       title: getStringField(item, "title") ?? stringifyUnknown(item),
       status: normalizeTodoStatus(getStringField(item, "status"))

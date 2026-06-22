@@ -1,4 +1,4 @@
-import { Markdown, OperateCard, Rag, Thinking, TodoList, ToolCall, WebSearch } from "@agentscope-ai/chat";
+import { Markdown, OperateCard, TodoList } from "@agentscope-ai/chat";
 import type { TMessage } from "@agentscope-ai/chat";
 import { CheckCircle2, Clock3, TerminalSquare, XCircle } from "lucide-react";
 import type { FC } from "react";
@@ -12,6 +12,7 @@ import type {
   AgentTextBlock,
   AgentTodoCard,
   AgentToolCall,
+  AgentToolPayload,
   AgentWebSearchCard
 } from "../../api";
 
@@ -354,11 +355,29 @@ export function OperationIcon({ status }: { status: OperationStatus }) {
 }
 
 function ThinkingCard({ data }: { data: ThinkingCardData }) {
-  return <Thinking title={data.title ?? "深度思考"} subTitle={data.subTitle ?? data.id} content={data.content} />;
+  return (
+    <OperateCard
+      header={{
+        icon: <OperationIcon status="idle" />,
+        title: data.title ?? "深度思考",
+        description: data.subTitle ?? data.id
+      }}
+      body={{
+        defaultOpen: false,
+        children: (
+          <OperateCard.LineBody>
+            <div className="ml-4 whitespace-pre-wrap break-words text-xs leading-5 text-[#5c5d62]">{data.content}</div>
+          </OperateCard.LineBody>
+        )
+      }}
+    />
+  );
 }
 
 function formatToolCallTitle(toolCall: AgentToolCall): string {
-  return isExecuteToolCall(toolCall) ? "执行命令" : toolCall.title;
+  const displayName = getToolDisplayName(toolCall);
+
+  return displayName ?? toolCall.title;
 }
 
 function formatToolCallSubTitle(toolCall: AgentToolCall): string {
@@ -375,14 +394,49 @@ function isExecuteToolCall(toolCall: AgentToolCall): boolean {
   return toolCall.title.trim().toLowerCase() === "execute";
 }
 
+function getToolDisplayName(toolCall: AgentToolCall): string | undefined {
+  const normalizedTitle = toolCall.title.trim().toLowerCase();
+
+  if (normalizedTitle === "execute") {
+    return "执行命令";
+  }
+
+  if (normalizedTitle === "read_file") {
+    return "读取文件";
+  }
+
+  return undefined;
+}
+
 function ToolCallCard({ data }: { data: ToolCallCardData }) {
   return (
-    <ToolCall
-      title={formatToolCallTitle(data)}
-      subTitle={formatToolCallSubTitle(data)}
-      input={data.input}
-      output={data.output}
+    <OperateCard
+      header={{
+        icon: <OperationIcon status={data.status} />,
+        title: formatToolCallTitle(data),
+        description: formatToolCallSubTitle(data)
+      }}
+      body={{
+        defaultOpen: false,
+        children: (
+          <OperateCard.LineBody>
+            <div className="ml-4 grid gap-2 text-xs text-[#5c5d62]">
+              <ToolCallBlock title="Input" content={data.input} />
+              <ToolCallBlock title="Output" content={data.output} />
+            </div>
+          </OperateCard.LineBody>
+        )
+      }}
     />
+  );
+}
+
+function ToolCallBlock({ title, content }: { title: string; content: AgentToolPayload }) {
+  return (
+    <div className="rounded-md border border-[#e5e5e2] bg-[#fafafa] p-2">
+      <div className="mb-1 text-[11px] font-semibold text-[#303135]">{title}</div>
+      <pre className="m-0 whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-[#5c5d62]">{stringifyCardPayload(content)}</pre>
+    </div>
   );
 }
 
@@ -397,7 +451,7 @@ function OperationCard({ data }: { data: OperationCardData }) {
         description: data.description
       }}
       body={{
-        defaultOpen: Boolean(data.rows.length),
+        defaultOpen: false,
         children: (
           <OperateCard.LineBody>
             <div className="ml-4 grid gap-1.5 text-xs text-[#5c5d62]">
@@ -416,15 +470,74 @@ function OperationCard({ data }: { data: OperationCardData }) {
 }
 
 function RagCard({ data }: { data: RagCardData }) {
-  return <Rag title={data.title} subTitle={data.subTitle} list={data.list} />;
+  return (
+    <OperateCard
+      header={{
+        icon: <OperationIcon status="idle" />,
+        title: data.title ?? "知识库检索",
+        description: data.subTitle
+      }}
+      body={{
+        defaultOpen: false,
+        children: (
+          <OperateCard.LineBody>
+            <div className="ml-4 grid gap-2 text-xs text-[#5c5d62]">
+              {data.list.map((item) => (
+                <div key={`${item.title}-${item.footer}`} className="grid gap-1.5">
+                  <div className="font-semibold text-[#303135]">{item.title}</div>
+                  <Markdown content={item.content} allowHtml={false} disableImage={false} />
+                  {item.link ? (
+                    <a className="text-[#3178c6]" href={item.link} rel="noreferrer" target="_blank">
+                      {item.footer}
+                    </a>
+                  ) : (
+                    <div>{item.footer}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </OperateCard.LineBody>
+        )
+      }}
+    />
+  );
 }
 
 function WebSearchCard({ data }: { data: WebSearchCardData }) {
-  return <WebSearch title={data.title} subTitle={data.subTitle} list={data.list} />;
+  return (
+    <OperateCard
+      header={{
+        icon: <OperationIcon status="idle" />,
+        title: data.title ?? "联网搜索",
+        description: data.subTitle
+      }}
+      body={{
+        defaultOpen: false,
+        children: (
+          <OperateCard.LineBody>
+            <div className="ml-4 grid gap-2 text-xs text-[#5c5d62]">
+              {data.list.map((item) => (
+                <a
+                  key={`${item.title}-${item.link}`}
+                  className="grid gap-1 rounded-md border border-[#e5e5e2] bg-[#fafafa] p-2 text-[#303135]"
+                  href={item.link}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <span className="font-semibold">{item.title}</span>
+                  {item.subTitle ? <span className="text-[#77787c]">{item.subTitle}</span> : null}
+                </a>
+              ))}
+            </div>
+          </OperateCard.LineBody>
+        )
+      }}
+    />
+  );
 }
 
 function TodoCard({ data }: { data: TodoCardData }) {
-  return <TodoList title={data.title} defaultOpen={data.defaultOpen ?? true} list={data.list} />;
+  return <TodoList title={data.title} defaultOpen={data.defaultOpen ?? false} list={data.list} />;
 }
 
 function MarkdownCard({ data }: { data: MarkdownCardData }) {
@@ -433,4 +546,8 @@ function MarkdownCard({ data }: { data: MarkdownCardData }) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringifyCardPayload(value: AgentToolPayload): string {
+  return typeof value === "string" ? value : JSON.stringify(value, null, 2);
 }
