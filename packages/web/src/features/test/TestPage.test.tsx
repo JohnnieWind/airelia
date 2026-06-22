@@ -90,6 +90,8 @@ describe("TestPage", () => {
     expect(await screen.findByText("深度思考")).toBeInTheDocument();
     expect(screen.queryByText("先确认当前目录。")).not.toBeInTheDocument();
     expect(screen.queryByText((_, element) => element?.textContent === "当前目录包含 packages。")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agent 执行")).not.toBeInTheDocument();
+    expect(screen.queryByText("模型调用")).not.toBeInTheDocument();
 
     controller?.enqueue(
       encoder.encode(
@@ -129,7 +131,6 @@ describe("TestPage", () => {
     );
     controller?.close();
 
-    const operationCard = await screen.findByText("Agent 执行");
     const firstToolCallCard = await screen.findByText("ls -la");
     const firstTextCard = await screen.findByText("第一段回复。");
     const secondToolCallCard = await screen.findByText("pwd");
@@ -141,7 +142,6 @@ describe("TestPage", () => {
     const thinkingHeaders = screen.getAllByText("深度思考");
 
     expect(thinkingHeaders).toHaveLength(2);
-    expectBefore(operationCard, firstToolCallCard);
     expectBefore(firstToolCallCard, thinkingHeaders[1]);
     expectBefore(thinkingHeaders[1], firstTextCard);
     expectBefore(firstTextCard, secondToolCallCard);

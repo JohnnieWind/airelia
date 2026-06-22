@@ -18,10 +18,15 @@ import type {
 
 export type AgentResponseCardStatus = NonNullable<TMessage["msgStatus"]>;
 
+export type AgentResponseCardDisplayConfig = {
+  showRuntimeOperations?: boolean;
+};
+
 export type AgentResponseCardMessage = {
   id: string;
   content: string;
   status?: AgentResponseCardStatus;
+  displayConfig?: AgentResponseCardDisplayConfig;
   thinking?: string;
   thinkingBlocks?: AgentThinkingBlock[];
   textBlocks?: AgentTextBlock[];
@@ -36,6 +41,13 @@ export type AgentResponseCardMessage = {
 
 type AgentResponseCards = NonNullable<TMessage["cards"]>;
 type OperationStatus = "idle" | "running" | "done" | "error";
+type ResolvedAgentResponseCardDisplayConfig = Required<AgentResponseCardDisplayConfig>;
+
+const defaultAgentResponseCardDisplayConfig: ResolvedAgentResponseCardDisplayConfig = {
+  showRuntimeOperations: false
+};
+
+const runtimeOperationTitles = new Set(["Agent 执行", "模型调用"]);
 
 type ThinkingCardData = {
   id: string;
@@ -60,8 +72,10 @@ type MarkdownCardData = {
 };
 
 export function createAgentResponseCards(message: AgentResponseCardMessage): AgentResponseCards {
+  const displayConfig = resolveAgentResponseCardDisplayConfig(message.displayConfig);
+
   if (message.parts?.length) {
-    return createAgentResponseCardsInEventOrder(message);
+    return createAgentResponseCardsInEventOrder(message, displayConfig);
   }
 
   const cards: AgentResponseCards = [];
@@ -69,7 +83,9 @@ export function createAgentResponseCards(message: AgentResponseCardMessage): Age
   appendThinkingCard(cards, message);
 
   for (const operation of message.operations ?? []) {
-    appendOperationCard(cards, message.id, operation);
+    if (shouldShowOperationCard(operation, displayConfig)) {
+      appendOperationCard(cards, message.id, operation);
+    }
   }
 
   for (const toolCall of message.toolCalls ?? []) {
@@ -229,12 +245,14 @@ export function createAgentResponseCardsFromSnapshot(
   messageId: string,
   snapshot: AgentStreamSnapshot,
   status: AgentResponseCardStatus,
-  content = snapshot.reply
+  content = snapshot.reply,
+  displayConfig?: AgentResponseCardDisplayConfig
 ): AgentResponseCards {
   return createAgentResponseCards({
     id: messageId,
     content,
     status,
+    displayConfig,
     thinking: snapshot.thinking,
     thinkingBlocks: snapshot.thinkingBlocks,
     textBlocks: snapshot.textBlocks,
@@ -248,7 +266,10 @@ export function createAgentResponseCardsFromSnapshot(
   });
 }
 
-function createAgentResponseCardsInEventOrder(message: AgentResponseCardMessage): AgentResponseCards {
+function createAgentResponseCardsInEventOrder(
+  message: AgentResponseCardMessage,
+  displayConfig: ResolvedAgentResponseCardDisplayConfig
+): AgentResponseCards {
   const cards: AgentResponseCards = [];
 
   for (const part of message.parts ?? []) {
@@ -279,7 +300,7 @@ function createAgentResponseCardsInEventOrder(message: AgentResponseCardMessage)
     if (part.type === "operation") {
       const operation = message.operations?.find((item) => item.id === part.id);
 
-      if (operation) {
+      if (operation && shouldShowOperationCard(operation, displayConfig)) {
         appendOperationCard(cards, message.id, operation);
       }
 
@@ -336,6 +357,26 @@ function createAgentResponseCardsInEventOrder(message: AgentResponseCardMessage)
   }
 
   return cards;
+}
+
+function resolveAgentResponseCardDisplayConfig(
+  displayConfig?: AgentResponseCardDisplayConfig
+): ResolvedAgentResponseCardDisplayConfig {
+  return {
+    ...defaultAgentResponseCardDisplayConfig,
+    ...displayConfig
+  };
+}
+
+function shouldShowOperationCard(
+  operation: AgentOperationCard,
+  displayConfig: ResolvedAgentResponseCardDisplayConfig
+): boolean {
+  return !isRuntimeOperationCard(operation) || displayConfig.showRuntimeOperations;
+}
+
+function isRuntimeOperationCard(operation: AgentOperationCard): boolean {
+  return runtimeOperationTitles.has(operation.title);
 }
 
 export function OperationIcon({ status }: { status: OperationStatus }) {
