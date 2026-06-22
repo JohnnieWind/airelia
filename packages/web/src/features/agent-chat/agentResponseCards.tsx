@@ -6,6 +6,7 @@ import type { FC } from "react";
 import type {
   AgentOperationCard,
   AgentRagCard,
+  AgentStreamPart,
   AgentStreamSnapshot,
   AgentTodoCard,
   AgentToolCall,
@@ -25,6 +26,7 @@ export type AgentResponseCardMessage = {
   ragCards?: AgentRagCard[];
   webSearchCards?: AgentWebSearchCard[];
   todoCards?: AgentTodoCard[];
+  parts?: AgentStreamPart[];
 };
 
 type AgentResponseCards = NonNullable<TMessage["cards"]>;
@@ -50,86 +52,117 @@ type MarkdownCardData = {
 };
 
 export function createAgentResponseCards(message: AgentResponseCardMessage): AgentResponseCards {
-  const cards: AgentResponseCards = [];
-
-  if (message.thinking?.trim()) {
-    cards.push({
-      code: "Thinking",
-      id: `${message.id}-thinking`,
-      data: {
-        content: message.thinking
-      } satisfies ThinkingCardData,
-      component: ThinkingCard as FC
-    });
+  if (message.parts?.length) {
+    return createAgentResponseCardsInEventOrder(message);
   }
 
+  const cards: AgentResponseCards = [];
+
+  appendThinkingCard(cards, message);
+
   for (const operation of message.operations ?? []) {
-    cards.push({
-      code: "OperateCard",
-      id: `${message.id}-${operation.id}`,
-      data: operation satisfies OperationCardData,
-      component: OperationCard as FC
-    });
+    appendOperationCard(cards, message.id, operation);
   }
 
   for (const toolCall of message.toolCalls ?? []) {
-    cards.push({
-      code: "ToolCall",
-      id: `${message.id}-${toolCall.id}`,
-      data: toolCall satisfies ToolCallCardData,
-      component: ToolCallCard as FC
-    });
+    appendToolCallCard(cards, message.id, toolCall);
   }
 
   for (const operateCard of message.operateCards ?? []) {
-    cards.push({
-      code: "OperateCard",
-      id: `${message.id}-${operateCard.id}`,
-      data: operateCard satisfies OperationCardData,
-      component: OperationCard as FC
-    });
+    appendOperationCard(cards, message.id, operateCard);
   }
 
   for (const ragCard of message.ragCards ?? []) {
-    cards.push({
-      code: "Rag",
-      id: `${message.id}-${ragCard.id}`,
-      data: ragCard satisfies RagCardData,
-      component: RagCard as FC
-    });
+    appendRagCard(cards, message.id, ragCard);
   }
 
   for (const webSearchCard of message.webSearchCards ?? []) {
-    cards.push({
-      code: "WebSearch",
-      id: `${message.id}-${webSearchCard.id}`,
-      data: webSearchCard satisfies WebSearchCardData,
-      component: WebSearchCard as FC
-    });
+    appendWebSearchCard(cards, message.id, webSearchCard);
   }
 
   for (const todoCard of message.todoCards ?? []) {
-    cards.push({
-      code: "TodoList",
-      id: `${message.id}-${todoCard.id}`,
-      data: todoCard satisfies TodoCardData,
-      component: TodoCard as FC
-    });
+    appendTodoCard(cards, message.id, todoCard);
   }
 
-  if (message.content || message.status === "generating") {
-    cards.push({
-      code: "Text",
-      id: `${message.id}-markdown`,
-      data: {
-        content: message.content,
-        generating: message.status === "generating"
-      } satisfies MarkdownCardData,
-      component: MarkdownCard as FC
-    });
-  }
+  appendTextCard(cards, message);
 
   return cards;
+}
+
+function appendThinkingCard(cards: AgentResponseCards, message: AgentResponseCardMessage) {
+  if (!message.thinking?.trim()) {
+    return;
+  }
+
+  cards.push({
+    code: "Thinking",
+    id: `${message.id}-thinking`,
+    data: {
+      content: message.thinking
+    } satisfies ThinkingCardData,
+    component: ThinkingCard as FC
+  });
+}
+
+function appendOperationCard(cards: AgentResponseCards, messageId: string, operation: AgentOperationCard) {
+  cards.push({
+    code: "OperateCard",
+    id: `${messageId}-${operation.id}`,
+    data: operation satisfies OperationCardData,
+    component: OperationCard as FC
+  });
+}
+
+function appendToolCallCard(cards: AgentResponseCards, messageId: string, toolCall: AgentToolCall) {
+  cards.push({
+    code: "ToolCall",
+    id: `${messageId}-${toolCall.id}`,
+    data: toolCall satisfies ToolCallCardData,
+    component: ToolCallCard as FC
+  });
+}
+
+function appendRagCard(cards: AgentResponseCards, messageId: string, ragCard: AgentRagCard) {
+  cards.push({
+    code: "Rag",
+    id: `${messageId}-${ragCard.id}`,
+    data: ragCard satisfies RagCardData,
+    component: RagCard as FC
+  });
+}
+
+function appendWebSearchCard(cards: AgentResponseCards, messageId: string, webSearchCard: AgentWebSearchCard) {
+  cards.push({
+    code: "WebSearch",
+    id: `${messageId}-${webSearchCard.id}`,
+    data: webSearchCard satisfies WebSearchCardData,
+    component: WebSearchCard as FC
+  });
+}
+
+function appendTodoCard(cards: AgentResponseCards, messageId: string, todoCard: AgentTodoCard) {
+  cards.push({
+    code: "TodoList",
+    id: `${messageId}-${todoCard.id}`,
+    data: todoCard satisfies TodoCardData,
+    component: TodoCard as FC
+  });
+}
+
+function appendTextCard(cards: AgentResponseCards, message: AgentResponseCardMessage) {
+  if (!message.content && message.status !== "generating") {
+    return;
+  }
+
+  cards.push({
+    code: "Text",
+    id: `${message.id}-markdown`,
+    data: {
+      content: message.content,
+      generating: message.status === "generating"
+    } satisfies MarkdownCardData,
+    component: MarkdownCard as FC
+  });
 }
 
 export function createAgentResponseCardsFromSnapshot(
@@ -148,8 +181,85 @@ export function createAgentResponseCardsFromSnapshot(
     operateCards: snapshot.operateCards,
     ragCards: snapshot.ragCards,
     webSearchCards: snapshot.webSearchCards,
-    todoCards: snapshot.todoCards
+    todoCards: snapshot.todoCards,
+    parts: snapshot.parts
   });
+}
+
+function createAgentResponseCardsInEventOrder(message: AgentResponseCardMessage): AgentResponseCards {
+  const cards: AgentResponseCards = [];
+
+  for (const part of message.parts ?? []) {
+    if (part.type === "thinking") {
+      appendThinkingCard(cards, message);
+      continue;
+    }
+
+    if (part.type === "text") {
+      appendTextCard(cards, message);
+      continue;
+    }
+
+    if (part.type === "operation") {
+      const operation = message.operations?.find((item) => item.id === part.id);
+
+      if (operation) {
+        appendOperationCard(cards, message.id, operation);
+      }
+
+      continue;
+    }
+
+    if (part.type === "tool") {
+      const toolCall = message.toolCalls?.find((item) => item.id === part.id);
+
+      if (toolCall) {
+        appendToolCallCard(cards, message.id, toolCall);
+      }
+
+      continue;
+    }
+
+    if (part.type === "operate") {
+      const operateCard = message.operateCards?.find((item) => item.id === part.id);
+
+      if (operateCard) {
+        appendOperationCard(cards, message.id, operateCard);
+      }
+
+      continue;
+    }
+
+    if (part.type === "rag") {
+      const ragCard = message.ragCards?.find((item) => item.id === part.id);
+
+      if (ragCard) {
+        appendRagCard(cards, message.id, ragCard);
+      }
+
+      continue;
+    }
+
+    if (part.type === "webSearch") {
+      const webSearchCard = message.webSearchCards?.find((item) => item.id === part.id);
+
+      if (webSearchCard) {
+        appendWebSearchCard(cards, message.id, webSearchCard);
+      }
+
+      continue;
+    }
+
+    if (part.type === "todo") {
+      const todoCard = message.todoCards?.find((item) => item.id === part.id);
+
+      if (todoCard) {
+        appendTodoCard(cards, message.id, todoCard);
+      }
+    }
+  }
+
+  return cards;
 }
 
 export function OperationIcon({ status }: { status: OperationStatus }) {

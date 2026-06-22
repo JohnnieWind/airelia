@@ -114,7 +114,19 @@ describe("TestPage", () => {
     );
     controller?.close();
 
-    expect(await screen.findByText((_, element) => element?.textContent === "当前目录包含 packages。")).toBeInTheDocument();
+    const operationCard = await screen.findByText("Agent 执行");
+    const thinkingCard = await screen.findByText("先确认当前目录。");
+    const toolCallCard = await screen.findByText("list_files");
+    const answerCard = await screen.findByText((_, element) => element?.textContent === "当前目录包含 packages。");
+
+    expect(answerCard).toBeInTheDocument();
+    expectBefore(operationCard, thinkingCard);
+    expectBefore(thinkingCard, toolCallCard);
+    expectBefore(toolCallCard, answerCard);
     expect(consoleErrorMock.mock.calls.flat().join("\n")).not.toContain('unique "key" prop');
   });
 });
+
+function expectBefore(left: HTMLElement, right: HTMLElement) {
+  expect(left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+}

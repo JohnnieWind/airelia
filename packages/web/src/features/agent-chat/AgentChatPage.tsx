@@ -3,7 +3,15 @@ import { ConfigProvider, carbonTheme } from "@agentscope-ai/design";
 import { Bot, UserRound } from "lucide-react";
 import { type ReactElement, type ReactNode, useMemo, useState } from "react";
 
-import { sendAgentTestMessageStream, type AgentOperationCard, type AgentRagCard, type AgentTodoCard, type AgentToolCall, type AgentWebSearchCard } from "../../api";
+import {
+  sendAgentTestMessageStream,
+  type AgentOperationCard,
+  type AgentRagCard,
+  type AgentStreamPart,
+  type AgentTodoCard,
+  type AgentToolCall,
+  type AgentWebSearchCard
+} from "../../api";
 import { createAgentResponseCards, OperationIcon } from "./agentResponseCards";
 
 type ChatMessage = {
@@ -18,6 +26,7 @@ type ChatMessage = {
   ragCards?: AgentRagCard[];
   webSearchCards?: AgentWebSearchCard[];
   todoCards?: AgentTodoCard[];
+  parts?: AgentStreamPart[];
 };
 
 type OperationState = {
@@ -124,7 +133,8 @@ function AgentChatPage() {
                     operateCards: snapshot.operateCards,
                     ragCards: snapshot.ragCards,
                     webSearchCards: snapshot.webSearchCards,
-                    todoCards: snapshot.todoCards
+                    todoCards: snapshot.todoCards,
+                    parts: snapshot.parts
                   }
                 : currentMessage
             )
@@ -152,7 +162,8 @@ function AgentChatPage() {
                 operateCards: finalSnapshot.operateCards,
                 ragCards: finalSnapshot.ragCards,
                 webSearchCards: finalSnapshot.webSearchCards,
-                todoCards: finalSnapshot.todoCards
+                todoCards: finalSnapshot.todoCards,
+                parts: finalSnapshot.parts
               }
             : currentMessage
         )

@@ -95,6 +95,16 @@ export interface AgentStreamEvent {
   data: unknown;
 }
 
+export type AgentStreamPart =
+  | { type: "thinking"; id: "thinking" }
+  | { type: "text"; id: "reply" }
+  | { type: "tool"; id: string }
+  | { type: "operation"; id: string }
+  | { type: "operate"; id: string }
+  | { type: "rag"; id: string }
+  | { type: "webSearch"; id: string }
+  | { type: "todo"; id: string };
+
 export interface AgentStreamSnapshot {
   done: boolean;
   reply: string;
@@ -105,6 +115,7 @@ export interface AgentStreamSnapshot {
   ragCards: AgentRagCard[];
   webSearchCards: AgentWebSearchCard[];
   todoCards: AgentTodoCard[];
+  parts: AgentStreamPart[];
   events: AgentStreamEvent[];
 }
 
@@ -198,6 +209,7 @@ export async function sendAgentTestMessageStream(message: string, handlers: Agen
     ragCards: [],
     webSearchCards: [],
     todoCards: [],
+    parts: [],
     events: []
   };
 
@@ -364,11 +376,13 @@ function applyAgentStreamEvent(
   }
 
   if (eventType.includes("THINKING") && delta) {
+    appendPartOnce(snapshot, { type: "thinking", id: "thinking" });
     snapshot.thinking += delta;
     return;
   }
 
   if (isAssistantTextDelta(eventType) && delta) {
+    appendPartOnce(snapshot, { type: "text", id: "reply" });
     snapshot.reply += delta;
     return;
   }
@@ -409,6 +423,7 @@ function applyOperationEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEv
 
   if (eventType === "AGENT_START") {
     const operation = upsertOperation(operationBuffers, getOperationId("agent", payload), "Agent 执行");
+    appendPartOnce(snapshot, { type: "operation", id: operation.id });
     operation.status = "running";
     operation.description = getFirstStringField(payload, ["name", "role", "source"]) ?? "assistant";
     updateOperations(snapshot, operationBuffers);
@@ -416,24 +431,32 @@ function applyOperationEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEv
   }
 
   if (eventType === "AGENT_END") {
-    const operation = upsertOperation(operationBuffers, getOperationId("agent", payload), "Agent 执行");
-    operation.status = "done";
-    updateOperations(snapshot, operationBuffers);
+    const operation = operationBuffers.get(getOperationId("agent", payload));
+
+    if (operation) {
+      operation.status = "done";
+      updateOperations(snapshot, operationBuffers);
+    }
+
     return;
   }
 
   if (eventType === "MODEL_CALL_START") {
     const operation = upsertOperation(operationBuffers, getOperationId("model", payload), "模型调用");
+    appendPartOnce(snapshot, { type: "operation", id: operation.id });
     operation.status = "running";
     updateOperations(snapshot, operationBuffers);
     return;
   }
 
   if (eventType === "MODEL_CALL_END") {
-    const operation = upsertOperation(operationBuffers, getOperationId("model", payload), "模型调用");
-    operation.status = "done";
-    operation.rows = rowsFromUsage(payload.usage);
-    updateOperations(snapshot, operationBuffers);
+    const operation = operationBuffers.get(getOperationId("model", payload));
+
+    if (operation) {
+      operation.status = "done";
+      operation.rows = rowsFromUsage(payload.usage);
+      updateOperations(snapshot, operationBuffers);
+    }
   }
 }
 
@@ -515,21 +538,25 @@ function appendStructuredDataCard(snapshot: AgentStreamSnapshot, blockId: string
 
   if (kind === "rag" || kind === "knowledge" || kind === "knowledge_retrieval") {
     snapshot.ragCards.push(normalizeRagCard(blockId, data));
+    appendPartOnce(snapshot, { type: "rag", id: blockId });
     return;
   }
 
   if (kind === "web_search" || kind === "search") {
     snapshot.webSearchCards.push(normalizeWebSearchCard(blockId, data));
+    appendPartOnce(snapshot, { type: "webSearch", id: blockId });
     return;
   }
 
   if (kind === "todo" || kind === "todo_list" || kind === "task_list") {
     snapshot.todoCards.push(normalizeTodoCard(blockId, data));
+    appendPartOnce(snapshot, { type: "todo", id: blockId });
     return;
   }
 
   if (kind === "operate" || kind === "operation" || kind === "operate_card") {
     snapshot.operateCards.push(normalizeOperateCard(blockId, data));
+    appendPartOnce(snapshot, { type: "operate", id: blockId });
   }
 }
 
@@ -605,6 +632,7 @@ function applyToolEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, 
   const toolId = getFirstStringField(payload, ["toolCallId", "tool_call_id", "callId", "id"]) ?? `tool-${toolBuffers.size + 1}`;
   const toolName = getFirstStringField(payload, ["toolCallName", "tool_name", "toolName", "functionName", "name"]);
   const buffer = getOrCreateToolBuffer(toolBuffers, toolId, toolName);
+  appendPartOnce(snapshot, { type: "tool", id: toolId });
 
   if (toolName) {
     buffer.tool.title = toolName;
@@ -707,6 +735,7 @@ function createEmptySnapshot(): AgentStreamSnapshot {
     ragCards: [],
     webSearchCards: [],
     todoCards: [],
+    parts: [],
     events: []
   };
 }
@@ -737,8 +766,17 @@ function cloneSnapshot(snapshot: AgentStreamSnapshot): AgentStreamSnapshot {
       ...card,
       list: card.list.map((item) => ({ ...item }))
     })),
+    parts: snapshot.parts.map((part) => ({ ...part })),
     events: snapshot.events.map((event) => ({ ...event }))
   };
+}
+
+function appendPartOnce(snapshot: AgentStreamSnapshot, part: AgentStreamPart) {
+  if (snapshot.parts.some((currentPart) => currentPart.type === part.type && currentPart.id === part.id)) {
+    return;
+  }
+
+  snapshot.parts.push(part);
 }
 
 function toRecordArray(value: unknown): Record<string, unknown>[] {

@@ -129,6 +129,11 @@ describe("api", () => {
           output: { files: ["README.md"] },
           status: "done"
         }
+      ],
+      parts: [
+        { type: "thinking", id: "thinking" },
+        { type: "tool", id: "call_1" },
+        { type: "text", id: "reply" }
       ]
     });
   });
@@ -185,6 +190,13 @@ describe("api", () => {
           output: { state: "success" },
           status: "done"
         }
+      ],
+      parts: [
+        { type: "operation", id: "agent-reply_root" },
+        { type: "operation", id: "model-reply_model" },
+        { type: "thinking", id: "thinking" },
+        { type: "tool", id: "call_1" },
+        { type: "text", id: "reply" }
       ]
     });
   });
@@ -248,6 +260,12 @@ describe("api", () => {
           description: "list_files",
           rows: [{ label: "path", value: "." }]
         }
+      ],
+      parts: [
+        { type: "rag", id: "rag" },
+        { type: "webSearch", id: "web-search" },
+        { type: "todo", id: "todo" },
+        { type: "operate", id: "operate" }
       ]
     });
   });
