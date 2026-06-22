@@ -1,41 +1,66 @@
-import { ChatAnywhere, type ChatAnywhereRef, DefaultCards, sleep, type TMessage, uuid } from "@agentscope-ai/chat";
-import { useAsyncEffect } from "ahooks";
+import { ChatAnywhere, type ChatAnywhereRef, DefaultCards, type TMessage, uuid } from "@agentscope-ai/chat";
 import { useCallback, useRef } from "react";
+
+import { sendAgentTestMessageStream } from "../../api";
 
 function TestPage() {
   const ref = useRef<ChatAnywhereRef>(null);
 
   const onSubmit = useCallback(async ({ query }: { query: string }) => {
+    const message = query.trim();
+
+    if (!message) {
+      return;
+    }
+
     const userMessage: TMessage = {
       id: uuid(),
       role: "user",
-      content: query
+      content: message,
+      msgStatus: "finished"
+    };
+    const assistantMessageId = uuid();
+    const assistantMessage: TMessage = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      msgStatus: "generating"
     };
 
     ref.current?.updateMessage(userMessage);
-    await sleep(100);
+    ref.current?.updateMessage(assistantMessage);
+    ref.current?.setLoading(true);
 
-    ref.current?.updateMessage({
-      id: uuid(),
-      role: "assistant",
-      content: "assistant content",
-      msgStatus: "finished"
-    });
+    try {
+      const finalSnapshot = await sendAgentTestMessageStream(message, {
+        onUpdate(snapshot) {
+          ref.current?.updateMessage({
+            ...assistantMessage,
+            content: snapshot.reply,
+            msgStatus: "generating"
+          });
+        }
+      });
+      const reply = finalSnapshot.reply.trim() || "Agent 已完成执行，但没有返回可展示文本。";
+
+      ref.current?.updateMessage({
+        ...assistantMessage,
+        content: reply,
+        msgStatus: "finished"
+      });
+    } catch (error) {
+      ref.current?.updateMessage({
+        ...assistantMessage,
+        content: error instanceof Error ? error.message : "Agent 调用失败，请稍后重试。",
+        msgStatus: "error"
+      });
+    } finally {
+      ref.current?.setLoading(false);
+    }
   }, []);
 
   const onStop = useCallback(() => {
     ref.current?.setLoading(false);
-  }, []);
-
-  useAsyncEffect(async () => {
-    await sleep(0);
-
-    ref.current?.updateMessage({
-      id: uuid(),
-      role: "user",
-      content: "I want to View page PV data",
-      msgStatus: "finished"
-    });
   }, []);
 
   return (

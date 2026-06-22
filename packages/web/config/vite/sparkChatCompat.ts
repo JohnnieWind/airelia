@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 const configDir = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(configDir, "../..");
 const sparkChatActionButton = path.resolve(webRoot, "src/features/spark/sparkChatActionButton.tsx");
+const sparkMarkdownStyle = path.resolve(webRoot, "src/features/spark/sparkMarkdownStyle.tsx");
 const sparkChatRuntime = path.resolve(webRoot, "src/features/spark/sparkChatRuntime.tsx");
 const sparkDesignRuntime = path.resolve(webRoot, "src/features/spark/sparkDesignRuntime.tsx");
 const htmlReactParserEsm = path.resolve(webRoot, "../../node_modules/html-react-parser/esm/index.mjs");
@@ -19,6 +20,12 @@ function isSparkChatActionButtonImport(source: string, importer?: string): boole
   ) || Boolean(
     importer?.includes("@agentscope-ai/chat/lib/Sender/index") &&
       source === "./components/ActionButton"
+  );
+}
+
+function isSparkMarkdownStyleImport(source: string, importer?: string): boolean {
+  return Boolean(
+    importer?.includes("@agentscope-ai/chat/lib/Markdown/Markdown/Markdown") && source === "./style"
   );
 }
 
@@ -67,6 +74,10 @@ function sparkChatRuntimePlugin() {
 
       if (isSparkChatActionButtonImport(source, importer)) {
         return sparkChatActionButton;
+      }
+
+      if (isSparkMarkdownStyleImport(source, importer)) {
+        return sparkMarkdownStyle;
       }
 
       if (isSparkChatParentRuntimeImport(source, importer)) {

@@ -15,7 +15,8 @@ import * as SparkDefaultCards from "@agentscope-ai/chat/lib/DefaultCards";
 import Disclaimer from "@agentscope-ai/chat/lib/Disclaimer";
 import OperateCard from "@agentscope-ai/chat/lib/OperateCard";
 import SparkMarkdown, { type MarkdownProps as SparkMarkdownProps } from "@agentscope-ai/chat/lib/Markdown";
-import Sender from "@agentscope-ai/chat/lib/Sender";
+import RawSender from "@agentscope-ai/chat/lib/Sender";
+import type { SenderRef } from "@agentscope-ai/chat/lib/Sender";
 import sleep from "@agentscope-ai/chat/lib/Util/sleep";
 import { Rag, Thinking, TodoList, ToolCall, WebSearch } from "@agentscope-ai/chat/lib/OperateCard/preset";
 import React, { createContext, useContext, useMemo } from "react";
@@ -35,7 +36,9 @@ interface BeforeUIContainerProps {
   rightChildren?: React.ReactNode;
 }
 
-type ChatInputType = typeof Sender & {
+type RawSenderProps = React.ComponentProps<typeof RawSender>;
+
+type ChatInputType = typeof RawSender & {
   BeforeUIContainer: (props: BeforeUIContainerProps) => React.ReactElement;
 };
 
@@ -85,8 +88,37 @@ function Mermaid({ content }: { content?: string }) {
   return content ? <pre>{content}</pre> : null;
 }
 
+function normalizeSenderPrefixNode(node: React.ReactNode, keyPrefix: string): React.ReactNode[] {
+  if (node === null || node === undefined || typeof node === "boolean") {
+    return [];
+  }
+
+  if (React.isValidElement(node) && node.type === React.Fragment) {
+    return React.Children.toArray((node.props as { children?: React.ReactNode }).children).flatMap(
+      (child, childIndex) => normalizeSenderPrefixNode(child, `${keyPrefix}-${childIndex}`)
+    );
+  }
+
+  if (React.isValidElement(node) && node.key === null) {
+    return [React.cloneElement(node as React.ReactElement, { key: keyPrefix })];
+  }
+
+  return [node];
+}
+
+function normalizeSenderPrefix(prefix: React.ReactNode): React.ReactNode[] {
+  return React.Children.toArray(prefix).flatMap((node, index) => normalizeSenderPrefixNode(node, `prefix-${index}`));
+}
+
 const DefaultCards = SparkDefaultCards;
-const ChatInput = Sender as ChatInputType;
+const ChatInput = React.forwardRef<SenderRef, RawSenderProps>(function ChatInputWithStablePrefix(props, ref) {
+  const prefix = useMemo(() => normalizeSenderPrefix(props.prefix), [props.prefix]);
+
+  return <RawSender {...props} prefix={prefix} ref={ref} />;
+}) as ChatInputType;
+
+ChatInput.Header = RawSender.Header;
+ChatInput.ModeSelect = RawSender.ModeSelect;
 
 ChatInput.BeforeUIContainer = function BeforeUIContainer({
   leftChildren,
@@ -99,6 +131,8 @@ ChatInput.BeforeUIContainer = function BeforeUIContainer({
     </div>
   );
 };
+
+const Sender = ChatInput;
 
 export default SparkChatProvider;
 export type { ChatAnywhereRef, TMessage, TSession };

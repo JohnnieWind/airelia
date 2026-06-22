@@ -35,6 +35,15 @@ describe("sparkChatCompat", () => {
     expect(resolvedId).toMatch(/src[/\\]features[/\\]spark[/\\]sparkChatActionButton\.tsx$/);
   });
 
+  it("routes Spark Chat markdown style through the SSR-safe style shim", () => {
+    const resolvedId = sparkChatCompat.plugin.resolveId(
+      "./style",
+      "/workspace/node_modules/@agentscope-ai/chat/lib/Markdown/Markdown/Markdown.js"
+    );
+
+    expect(resolvedId).toMatch(/src[/\\]features[/\\]spark[/\\]sparkMarkdownStyle\.tsx$/);
+  });
+
   it("routes deep Spark Chat parent imports through the runtime adapter", () => {
     const resolvedId = sparkChatCompat.plugin.resolveId(
       "../../..",
