@@ -260,6 +260,58 @@ describe("App", () => {
     });
   });
 
+  it("renders structured AgentScope response cards from the agent stream", async () => {
+    const encoder = new TextEncoder();
+    let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "text/event-stream;charset=UTF-8"
+      },
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          streamController = controller;
+        }
+      })
+    } as unknown as Response);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "助理" }));
+
+    const input = screen.getByPlaceholderText("今天想让助理做什么？");
+    fireEvent.change(input, { target: { value: "展示结构化回复" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+    await screen.findByText("正在调用本地测试 Agent");
+
+    streamController?.enqueue(
+      encoder.encode(
+        [
+          'event:DATA_BLOCK_DELTA\ndata:{"type":"DATA_BLOCK_DELTA","blockId":"rag","delta":"{\\"kind\\":\\"rag\\",\\"subTitle\\":\\"项目资料\\",\\"list\\":[{\\"title\\":\\"README\\",\\"content\\":\\"Airelia desktop app\\",\\"footer\\":\\"README.md\\"}]}"}',
+          'event:DATA_BLOCK_END\ndata:{"type":"DATA_BLOCK_END","blockId":"rag"}',
+          'event:DATA_BLOCK_DELTA\ndata:{"type":"DATA_BLOCK_DELTA","blockId":"web","delta":"{\\"kind\\":\\"web_search\\",\\"list\\":[{\\"title\\":\\"Transformer 登上 Nature\\",\\"subTitle\\":\\"新闻\\",\\"link\\":\\"https://example.com/article\\"}]}"}',
+          'event:DATA_BLOCK_END\ndata:{"type":"DATA_BLOCK_END","blockId":"web"}',
+          'event:DATA_BLOCK_DELTA\ndata:{"type":"DATA_BLOCK_DELTA","blockId":"todo","delta":"{\\"kind\\":\\"todo\\",\\"title\\":\\"Task List\\",\\"list\\":[{\\"title\\":\\"查看当前目录\\",\\"status\\":\\"done\\"},{\\"title\\":\\"总结文件\\",\\"status\\":\\"running\\"}]}"}',
+          'event:DATA_BLOCK_END\ndata:{"type":"DATA_BLOCK_END","blockId":"todo"}',
+          'event:DATA_BLOCK_DELTA\ndata:{"type":"DATA_BLOCK_DELTA","blockId":"operate","delta":"{\\"kind\\":\\"operate\\",\\"title\\":\\"读取目录\\",\\"description\\":\\"list_files\\",\\"rows\\":[{\\"label\\":\\"path\\",\\"value\\":\\".\\"}]}"}',
+          'event:DATA_BLOCK_END\ndata:{"type":"DATA_BLOCK_END","blockId":"operate"}',
+          'event:AGENT_END\ndata:{"type":"AGENT_END"}'
+        ].join("\n\n") + "\n\n"
+      )
+    );
+
+    expect(await screen.findByText("知识库检索")).toBeInTheDocument();
+    expect(await screen.findByText("README")).toBeInTheDocument();
+    expect(await screen.findByText("Airelia desktop app")).toBeInTheDocument();
+    expect(await screen.findByText("联网搜索")).toBeInTheDocument();
+    expect(await screen.findByText("Transformer 登上 Nature")).toBeInTheDocument();
+    expect(await screen.findByText("Task List")).toBeInTheDocument();
+    expect(await screen.findByText("查看当前目录")).toBeInTheDocument();
+    expect(await screen.findByText("读取目录")).toBeInTheDocument();
+    expect(await screen.findByText("path")).toBeInTheDocument();
+  });
+
   it("does not globally override button font-size utilities", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 

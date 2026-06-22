@@ -41,6 +41,54 @@ export interface AgentToolCall {
   status: "running" | "done" | "error";
 }
 
+export interface AgentOperationCardRow {
+  label: string;
+  value: string;
+}
+
+export interface AgentOperationCard {
+  id: string;
+  title: string;
+  description?: string;
+  status?: "idle" | "running" | "done" | "error";
+  rows: AgentOperationCardRow[];
+}
+
+export interface AgentRagCard {
+  id: string;
+  title?: string;
+  subTitle?: string;
+  list: {
+    title: string;
+    content: string;
+    footer: string;
+    images?: string[];
+    link?: string;
+  }[];
+}
+
+export interface AgentWebSearchCard {
+  id: string;
+  title?: string;
+  subTitle?: string;
+  list: {
+    title: string;
+    subTitle?: string;
+    link: string;
+    icon: string;
+  }[];
+}
+
+export interface AgentTodoCard {
+  id: string;
+  title?: string;
+  defaultOpen?: boolean;
+  list: {
+    title: string;
+    status: "done" | "todo" | "running";
+  }[];
+}
+
 export interface AgentStreamEvent {
   type: string;
   event?: string;
@@ -52,6 +100,11 @@ export interface AgentStreamSnapshot {
   reply: string;
   thinking: string;
   toolCalls: AgentToolCall[];
+  operations: AgentOperationCard[];
+  operateCards: AgentOperationCard[];
+  ragCards: AgentRagCard[];
+  webSearchCards: AgentWebSearchCard[];
+  todoCards: AgentTodoCard[];
   events: AgentStreamEvent[];
 }
 
@@ -140,6 +193,11 @@ export async function sendAgentTestMessageStream(message: string, handlers: Agen
     reply: extractAgentReplyFromJson(payload),
     thinking: "",
     toolCalls: [],
+    operations: [],
+    operateCards: [],
+    ragCards: [],
+    webSearchCards: [],
+    todoCards: [],
     events: []
   };
 
@@ -175,9 +233,11 @@ async function getAgentTestErrorMessage(response: Response): Promise<string> {
 async function readAgentEventStream(response: Response, handlers: AgentStreamHandlers = {}): Promise<AgentStreamSnapshot> {
   const snapshot = createEmptySnapshot();
   const toolBuffers = new Map<string, AgentToolBuffer>();
+  const operationBuffers = new Map<string, AgentOperationCard>();
+  const dataBlockBuffers = new Map<string, string>();
 
   if (!response.body) {
-    return readRawAgentEventStream(await response.text(), snapshot, toolBuffers, handlers);
+    return readRawAgentEventStream(await response.text(), snapshot, toolBuffers, operationBuffers, dataBlockBuffers, handlers);
   }
 
   const reader = response.body.getReader();
@@ -193,7 +253,7 @@ async function readAgentEventStream(response: Response, handlers: AgentStreamHan
     buffer = blocks.pop() ?? "";
 
     for (const block of blocks) {
-      publishSseBlock(block, snapshot, toolBuffers, handlers);
+      publishSseBlock(block, snapshot, toolBuffers, operationBuffers, dataBlockBuffers, handlers);
 
       if (snapshot.done) {
         await reader.cancel();
@@ -207,7 +267,7 @@ async function readAgentEventStream(response: Response, handlers: AgentStreamHan
   }
 
   if (buffer.trim()) {
-    publishSseBlock(buffer, snapshot, toolBuffers, handlers);
+    publishSseBlock(buffer, snapshot, toolBuffers, operationBuffers, dataBlockBuffers, handlers);
   }
 
   return cloneSnapshot(snapshot);
@@ -217,13 +277,15 @@ function readRawAgentEventStream(
   rawStream: string,
   snapshot: AgentStreamSnapshot,
   toolBuffers: Map<string, AgentToolBuffer>,
+  operationBuffers: Map<string, AgentOperationCard>,
+  dataBlockBuffers: Map<string, string>,
   handlers: AgentStreamHandlers
 ): AgentStreamSnapshot {
   rawStream
     .split(/\r?\n\r?\n/)
     .filter((block) => block.trim())
     .some((block) => {
-      publishSseBlock(block, snapshot, toolBuffers, handlers);
+      publishSseBlock(block, snapshot, toolBuffers, operationBuffers, dataBlockBuffers, handlers);
 
       return snapshot.done;
     });
@@ -235,6 +297,8 @@ function publishSseBlock(
   block: string,
   snapshot: AgentStreamSnapshot,
   toolBuffers: Map<string, AgentToolBuffer>,
+  operationBuffers: Map<string, AgentOperationCard>,
+  dataBlockBuffers: Map<string, string>,
   handlers: AgentStreamHandlers
 ) {
   const event = parseSseBlock(block);
@@ -243,7 +307,7 @@ function publishSseBlock(
     return;
   }
 
-  applyAgentStreamEvent(snapshot, event, toolBuffers);
+  applyAgentStreamEvent(snapshot, event, toolBuffers, operationBuffers, dataBlockBuffers);
 
   const nextSnapshot = cloneSnapshot(snapshot);
   handlers.onEvent?.(event, nextSnapshot);
@@ -281,11 +345,23 @@ function parseSseBlock(block: string): AgentStreamEvent | null {
   };
 }
 
-function applyAgentStreamEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, toolBuffers: Map<string, AgentToolBuffer>) {
+function applyAgentStreamEvent(
+  snapshot: AgentStreamSnapshot,
+  event: AgentStreamEvent,
+  toolBuffers: Map<string, AgentToolBuffer>,
+  operationBuffers: Map<string, AgentOperationCard>,
+  dataBlockBuffers: Map<string, string>
+) {
   snapshot.events.push(event);
 
   const eventType = event.type.toUpperCase();
   const delta = getStringField(event.data, "delta");
+
+  applyOperationEvent(snapshot, event, operationBuffers);
+
+  if (eventType.includes("DATA_BLOCK")) {
+    applyDataBlockEvent(snapshot, event, dataBlockBuffers);
+  }
 
   if (eventType.includes("THINKING") && delta) {
     snapshot.thinking += delta;
@@ -320,6 +396,196 @@ function isAssistantTextDelta(eventType: string): boolean {
   }
 
   return eventType.includes("TEXT") || eventType.includes("MESSAGE") || eventType.includes("CONTENT");
+}
+
+function applyOperationEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, operationBuffers: Map<string, AgentOperationCard>) {
+  const payload = event.data;
+
+  if (!isRecord(payload)) {
+    return;
+  }
+
+  const eventType = event.type.toUpperCase();
+
+  if (eventType === "AGENT_START") {
+    const operation = upsertOperation(operationBuffers, getOperationId("agent", payload), "Agent 执行");
+    operation.status = "running";
+    operation.description = getFirstStringField(payload, ["name", "role", "source"]) ?? "assistant";
+    updateOperations(snapshot, operationBuffers);
+    return;
+  }
+
+  if (eventType === "AGENT_END") {
+    const operation = upsertOperation(operationBuffers, getOperationId("agent", payload), "Agent 执行");
+    operation.status = "done";
+    updateOperations(snapshot, operationBuffers);
+    return;
+  }
+
+  if (eventType === "MODEL_CALL_START") {
+    const operation = upsertOperation(operationBuffers, getOperationId("model", payload), "模型调用");
+    operation.status = "running";
+    updateOperations(snapshot, operationBuffers);
+    return;
+  }
+
+  if (eventType === "MODEL_CALL_END") {
+    const operation = upsertOperation(operationBuffers, getOperationId("model", payload), "模型调用");
+    operation.status = "done";
+    operation.rows = rowsFromUsage(payload.usage);
+    updateOperations(snapshot, operationBuffers);
+  }
+}
+
+function getOperationId(prefix: string, payload: Record<string, unknown>): string {
+  return `${prefix}-${getFirstStringField(payload, ["replyId", "id"]) ?? "current"}`;
+}
+
+function upsertOperation(operationBuffers: Map<string, AgentOperationCard>, id: string, title: string): AgentOperationCard {
+  const existingOperation = operationBuffers.get(id);
+
+  if (existingOperation) {
+    return existingOperation;
+  }
+
+  const operation: AgentOperationCard = {
+    id,
+    title,
+    status: "running",
+    rows: []
+  };
+
+  operationBuffers.set(id, operation);
+
+  return operation;
+}
+
+function updateOperations(snapshot: AgentStreamSnapshot, operationBuffers: Map<string, AgentOperationCard>) {
+  snapshot.operations = Array.from(operationBuffers.values()).map((operation) => ({
+    ...operation,
+    rows: operation.rows.map((row) => ({ ...row }))
+  }));
+}
+
+function rowsFromUsage(usage: unknown): AgentOperationCardRow[] {
+  if (!isRecord(usage)) {
+    return [];
+  }
+
+  return ["inputTokens", "outputTokens", "totalTokens", "time"]
+    .filter((field) => usage[field] !== undefined && usage[field] !== null)
+    .map((field) => ({
+      label: field,
+      value: String(usage[field])
+    }));
+}
+
+function applyDataBlockEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, dataBlockBuffers: Map<string, string>) {
+  const payload = event.data;
+
+  if (!isRecord(payload)) {
+    return;
+  }
+
+  const blockId = getFirstStringField(payload, ["blockId", "id"]) ?? `data-${dataBlockBuffers.size + 1}`;
+  const eventType = event.type.toUpperCase();
+
+  if (eventType === "DATA_BLOCK_DELTA" && typeof payload.delta === "string") {
+    dataBlockBuffers.set(blockId, `${dataBlockBuffers.get(blockId) ?? ""}${payload.delta}`);
+    return;
+  }
+
+  if (eventType !== "DATA_BLOCK_END") {
+    return;
+  }
+
+  const parsedData = parsePossibleJson(dataBlockBuffers.get(blockId) ?? "");
+
+  if (!isRecord(parsedData)) {
+    dataBlockBuffers.delete(blockId);
+    return;
+  }
+
+  appendStructuredDataCard(snapshot, blockId, parsedData);
+  dataBlockBuffers.delete(blockId);
+}
+
+function appendStructuredDataCard(snapshot: AgentStreamSnapshot, blockId: string, data: Record<string, unknown>) {
+  const kind = getFirstStringField(data, ["kind", "type", "code", "cardType"])?.toLowerCase().replaceAll("-", "_");
+
+  if (kind === "rag" || kind === "knowledge" || kind === "knowledge_retrieval") {
+    snapshot.ragCards.push(normalizeRagCard(blockId, data));
+    return;
+  }
+
+  if (kind === "web_search" || kind === "search") {
+    snapshot.webSearchCards.push(normalizeWebSearchCard(blockId, data));
+    return;
+  }
+
+  if (kind === "todo" || kind === "todo_list" || kind === "task_list") {
+    snapshot.todoCards.push(normalizeTodoCard(blockId, data));
+    return;
+  }
+
+  if (kind === "operate" || kind === "operation" || kind === "operate_card") {
+    snapshot.operateCards.push(normalizeOperateCard(blockId, data));
+  }
+}
+
+function normalizeRagCard(id: string, data: Record<string, unknown>): AgentRagCard {
+  return {
+    id,
+    title: getStringField(data, "title"),
+    subTitle: getStringField(data, "subTitle") ?? getStringField(data, "subtitle"),
+    list: toRecordArray(data.list).map((item) => ({
+      title: getStringField(item, "title") ?? "未命名资料",
+      content: getStringField(item, "content") ?? stringifyUnknown(item.content ?? ""),
+      footer: getStringField(item, "footer") ?? getStringField(item, "source") ?? "",
+      images: toStringArray(item.images),
+      link: getStringField(item, "link")
+    }))
+  };
+}
+
+function normalizeWebSearchCard(id: string, data: Record<string, unknown>): AgentWebSearchCard {
+  return {
+    id,
+    title: getStringField(data, "title"),
+    subTitle: getStringField(data, "subTitle") ?? getStringField(data, "subtitle"),
+    list: toRecordArray(data.list).map((item) => {
+      const link = getStringField(item, "link") ?? getStringField(item, "url") ?? "";
+
+      return {
+        title: getStringField(item, "title") ?? link,
+        subTitle: getStringField(item, "subTitle") ?? getStringField(item, "subtitle") ?? getStringField(item, "source"),
+        link,
+        icon: getStringField(item, "icon") ?? faviconFromLink(link)
+      };
+    })
+  };
+}
+
+function normalizeTodoCard(id: string, data: Record<string, unknown>): AgentTodoCard {
+  return {
+    id,
+    title: getStringField(data, "title"),
+    defaultOpen: typeof data.defaultOpen === "boolean" ? data.defaultOpen : true,
+    list: toRecordArray(data.list).map((item) => ({
+      title: getStringField(item, "title") ?? stringifyUnknown(item),
+      status: normalizeTodoStatus(getStringField(item, "status"))
+    }))
+  };
+}
+
+function normalizeOperateCard(id: string, data: Record<string, unknown>): AgentOperationCard {
+  return {
+    id,
+    title: getStringField(data, "title") ?? "AI 操作",
+    description: getStringField(data, "description") ?? getStringField(data, "subTitle") ?? getStringField(data, "subtitle"),
+    status: normalizeOperationStatus(getStringField(data, "status")),
+    rows: toOperationRows(data.rows ?? data.body ?? data.data)
+  };
 }
 
 interface AgentToolBuffer {
@@ -360,6 +626,12 @@ function applyToolEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, 
       buffer.tool.output = parsePossibleJson(buffer.outputText) as AgentToolPayload;
     } else if (hasAnyField(payload, ["result", "output", "content", "data"])) {
       buffer.tool.output = readToolValue(payload, ["result", "output", "content", "data"], payload);
+    } else if (eventType.includes("END")) {
+      const state = getFirstStringField(payload, ["state", "status"]);
+
+      if (state) {
+        buffer.tool.output = { state };
+      }
     }
   }
 
@@ -430,6 +702,11 @@ function createEmptySnapshot(): AgentStreamSnapshot {
     reply: "",
     thinking: "",
     toolCalls: [],
+    operations: [],
+    operateCards: [],
+    ragCards: [],
+    webSearchCards: [],
+    todoCards: [],
     events: []
   };
 }
@@ -440,8 +717,124 @@ function cloneSnapshot(snapshot: AgentStreamSnapshot): AgentStreamSnapshot {
     reply: snapshot.reply,
     thinking: snapshot.thinking,
     toolCalls: snapshot.toolCalls.map((toolCall) => ({ ...toolCall })),
+    operations: snapshot.operations.map((operation) => ({
+      ...operation,
+      rows: operation.rows.map((row) => ({ ...row }))
+    })),
+    operateCards: snapshot.operateCards.map((operation) => ({
+      ...operation,
+      rows: operation.rows.map((row) => ({ ...row }))
+    })),
+    ragCards: snapshot.ragCards.map((card) => ({
+      ...card,
+      list: card.list.map((item) => ({ ...item, images: item.images ? [...item.images] : undefined }))
+    })),
+    webSearchCards: snapshot.webSearchCards.map((card) => ({
+      ...card,
+      list: card.list.map((item) => ({ ...item }))
+    })),
+    todoCards: snapshot.todoCards.map((card) => ({
+      ...card,
+      list: card.list.map((item) => ({ ...item }))
+    })),
     events: snapshot.events.map((event) => ({ ...event }))
   };
+}
+
+function toRecordArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(isRecord);
+}
+
+function toStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const strings = value.filter((item): item is string => typeof item === "string");
+
+  return strings.length ? strings : undefined;
+}
+
+function toOperationRows(value: unknown): AgentOperationCardRow[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (!isRecord(item)) {
+        return [];
+      }
+
+      const label = getStringField(item, "label") ?? getStringField(item, "name") ?? getStringField(item, "key");
+      const rawValue = item.value ?? item.content ?? item.data;
+
+      if (!label) {
+        return [];
+      }
+
+      return [{ label, value: stringifyUnknown(rawValue) }];
+    });
+  }
+
+  if (isRecord(value)) {
+    return Object.entries(value).map(([label, rowValue]) => ({
+      label,
+      value: stringifyUnknown(rowValue)
+    }));
+  }
+
+  return [];
+}
+
+function normalizeTodoStatus(status?: string): "done" | "todo" | "running" {
+  if (status === "done" || status === "running") {
+    return status;
+  }
+
+  return "todo";
+}
+
+function normalizeOperationStatus(status?: string): "idle" | "running" | "done" | "error" | undefined {
+  if (status === "idle" || status === "running" || status === "done" || status === "error") {
+    return status;
+  }
+
+  if (status === "success") {
+    return "done";
+  }
+
+  if (status === "failed") {
+    return "error";
+  }
+
+  return undefined;
+}
+
+function faviconFromLink(link: string): string {
+  try {
+    const url = new URL(link);
+
+    return `${url.origin}/favicon.ico`;
+  } catch {
+    return "";
+  }
+}
+
+function stringifyUnknown(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value === undefined || value === null) {
+    return "";
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return JSON.stringify(value);
 }
 
 function extractAgentReplyFromJson(response: AgentTestResponse): string {

@@ -17,7 +17,7 @@ import OperateCard from "@agentscope-ai/chat/lib/OperateCard";
 import SparkMarkdown, { type MarkdownProps as SparkMarkdownProps } from "@agentscope-ai/chat/lib/Markdown";
 import Sender from "@agentscope-ai/chat/lib/Sender";
 import sleep from "@agentscope-ai/chat/lib/Util/sleep";
-import { Thinking, ToolCall } from "@agentscope-ai/chat/lib/OperateCard/preset";
+import { Rag, Thinking, TodoList, ToolCall, WebSearch } from "@agentscope-ai/chat/lib/OperateCard/preset";
 import React, { createContext, useContext, useMemo } from "react";
 import type { ChatAnywhereRef, TMessage, TSession } from "@agentscope-ai/chat/lib/ChatAnywhere";
 
@@ -119,10 +119,13 @@ export {
   Markdown,
   Mermaid,
   OperateCard,
+  Rag,
   SparkChatProvider,
   Sender,
   Thinking,
+  TodoList,
   ToolCall,
+  WebSearch,
   sleep,
   useChatAnywhere,
   useCustomCardsContext,

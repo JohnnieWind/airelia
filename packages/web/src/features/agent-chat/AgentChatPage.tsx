@@ -1,13 +1,16 @@
-import Bubble from "@agentscope-ai/chat/lib/Bubble";
-import Markdown from "@agentscope-ai/chat/lib/Markdown";
-import OperateCard from "@agentscope-ai/chat/lib/OperateCard";
-import { Thinking, ToolCall } from "@agentscope-ai/chat/lib/OperateCard/preset";
-import ChatInput from "@agentscope-ai/chat/lib/Sender";
+import { Bubble, Markdown, OperateCard, Rag, Sender as ChatInput, Thinking, TodoList, ToolCall, WebSearch } from "@agentscope-ai/chat";
 import { ConfigProvider, carbonTheme } from "@agentscope-ai/design";
 import { Bot, CheckCircle2, Clock3, TerminalSquare, UserRound, XCircle } from "lucide-react";
 import { type ReactElement, type ReactNode, useMemo, useState } from "react";
 
-import { sendAgentTestMessageStream, type AgentToolCall } from "../../api";
+import {
+  sendAgentTestMessageStream,
+  type AgentOperationCard,
+  type AgentRagCard,
+  type AgentTodoCard,
+  type AgentToolCall,
+  type AgentWebSearchCard
+} from "../../api";
 
 type ChatMessage = {
   id: string;
@@ -16,6 +19,11 @@ type ChatMessage = {
   status?: "error" | "finished" | "generating";
   thinking?: string;
   toolCalls?: AgentToolCall[];
+  operations?: AgentOperationCard[];
+  operateCards?: AgentOperationCard[];
+  ragCards?: AgentRagCard[];
+  webSearchCards?: AgentWebSearchCard[];
+  todoCards?: AgentTodoCard[];
 };
 
 type OperationState = {
@@ -117,7 +125,12 @@ function AgentChatPage() {
                     content: snapshot.reply,
                     status: "generating",
                     thinking: snapshot.thinking,
-                    toolCalls: snapshot.toolCalls
+                    toolCalls: snapshot.toolCalls,
+                    operations: snapshot.operations,
+                    operateCards: snapshot.operateCards,
+                    ragCards: snapshot.ragCards,
+                    webSearchCards: snapshot.webSearchCards,
+                    todoCards: snapshot.todoCards
                   }
                 : currentMessage
             )
@@ -140,7 +153,12 @@ function AgentChatPage() {
                 content: reply,
                 status: "finished",
                 thinking: finalSnapshot.thinking,
-                toolCalls: finalSnapshot.toolCalls
+                toolCalls: finalSnapshot.toolCalls,
+                operations: finalSnapshot.operations,
+                operateCards: finalSnapshot.operateCards,
+                ragCards: finalSnapshot.ragCards,
+                webSearchCards: finalSnapshot.webSearchCards,
+                todoCards: finalSnapshot.todoCards
               }
             : currentMessage
         )
@@ -271,6 +289,14 @@ type ThinkingCardData = {
 
 type ToolCallCardData = AgentToolCall;
 
+type OperationCardData = AgentOperationCard;
+
+type RagCardData = AgentRagCard;
+
+type WebSearchCardData = AgentWebSearchCard;
+
+type TodoCardData = AgentTodoCard;
+
 type MarkdownCardData = {
   content: string;
   generating: boolean;
@@ -290,12 +316,57 @@ function createAssistantCards(message: ChatMessage) {
     });
   }
 
+  for (const operation of message.operations ?? []) {
+    cards.push({
+      code: "OperateCard",
+      id: `${message.id}-${operation.id}`,
+      data: operation satisfies OperationCardData,
+      component: OperationCard
+    });
+  }
+
   for (const toolCall of message.toolCalls ?? []) {
     cards.push({
       code: "ToolCall",
       id: `${message.id}-${toolCall.id}`,
       data: toolCall satisfies ToolCallCardData,
       component: ToolCallCard
+    });
+  }
+
+  for (const operateCard of message.operateCards ?? []) {
+    cards.push({
+      code: "OperateCard",
+      id: `${message.id}-${operateCard.id}`,
+      data: operateCard satisfies OperationCardData,
+      component: OperationCard
+    });
+  }
+
+  for (const ragCard of message.ragCards ?? []) {
+    cards.push({
+      code: "Rag",
+      id: `${message.id}-${ragCard.id}`,
+      data: ragCard satisfies RagCardData,
+      component: RagCard
+    });
+  }
+
+  for (const webSearchCard of message.webSearchCards ?? []) {
+    cards.push({
+      code: "WebSearch",
+      id: `${message.id}-${webSearchCard.id}`,
+      data: webSearchCard satisfies WebSearchCardData,
+      component: WebSearchCard
+    });
+  }
+
+  for (const todoCard of message.todoCards ?? []) {
+    cards.push({
+      code: "TodoList",
+      id: `${message.id}-${todoCard.id}`,
+      data: todoCard satisfies TodoCardData,
+      component: TodoCard
     });
   }
 
@@ -320,6 +391,47 @@ function ThinkingCard({ data }: { data: ThinkingCardData }) {
 
 function ToolCallCard({ data }: { data: ToolCallCardData }) {
   return <ToolCall title={data.title} subTitle={data.subTitle || data.status} input={data.input} output={data.output} />;
+}
+
+function OperationCard({ data }: { data: OperationCardData }) {
+  const status = data.status ?? "running";
+
+  return (
+    <OperateCard
+      header={{
+        icon: <OperationIcon status={status} />,
+        title: data.title,
+        description: data.description
+      }}
+      body={{
+        defaultOpen: Boolean(data.rows.length),
+        children: (
+          <OperateCard.LineBody>
+            <div className="ml-4 grid gap-1.5 text-xs text-[#5c5d62]">
+              {data.rows.map((row) => (
+                <div key={`${row.label}-${row.value}`} className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                  <span className="font-semibold text-[#303135]">{row.label}</span>
+                  <span className="min-w-0 break-words">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </OperateCard.LineBody>
+        )
+      }}
+    />
+  );
+}
+
+function RagCard({ data }: { data: RagCardData }) {
+  return <Rag title={data.title} subTitle={data.subTitle} list={data.list} />;
+}
+
+function WebSearchCard({ data }: { data: WebSearchCardData }) {
+  return <WebSearch title={data.title} subTitle={data.subTitle} list={data.list} />;
+}
+
+function TodoCard({ data }: { data: TodoCardData }) {
+  return <TodoList title={data.title} defaultOpen={data.defaultOpen ?? true} list={data.list} />;
 }
 
 function MarkdownCard({ data }: { data: MarkdownCardData }) {

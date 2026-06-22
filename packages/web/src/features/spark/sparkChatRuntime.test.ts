@@ -4,8 +4,11 @@ import React from "react";
 import SparkChatProvider, {
   ChatAnywhere,
   DefaultCards,
+  Rag,
   SparkChatProvider as NamedSparkChatProvider,
   sleep,
+  TodoList,
+  WebSearch,
   uuid
 } from "./sparkChatRuntime";
 
@@ -17,6 +20,9 @@ describe("sparkChatRuntime", () => {
     );
     expect(sleep(0)).toBeInstanceOf(Promise);
     expect(DefaultCards).toEqual(expect.any(Object));
+    expect(Rag).toEqual(expect.any(Function));
+    expect(TodoList).toEqual(expect.any(Function));
+    expect(WebSearch).toEqual(expect.any(Function));
     expect(SparkChatProvider).toBe(NamedSparkChatProvider);
   });
 });

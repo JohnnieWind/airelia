@@ -133,6 +133,125 @@ describe("api", () => {
     });
   });
 
+  it("normalizes the real AgentController test stream into AI response parts", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "text/event-stream;charset=UTF-8"
+      },
+      text: async () =>
+        [
+          'event:AGENT_START\ndata:{"type":"AGENT_START","id":"agent_1","replyId":"reply_root","name":"default","role":"assistant"}',
+          'event:MODEL_CALL_START\ndata:{"type":"MODEL_CALL_START","id":"model_1","replyId":"reply_model"}',
+          'event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","replyId":"reply_model","blockId":"thinking","delta":"先确认当前目录。"}',
+          'event:TOOL_CALL_START\ndata:{"type":"TOOL_CALL_START","replyId":"reply_model","toolCallId":"call_1","toolCallName":"list_files"}',
+          'event:TOOL_CALL_DELTA\ndata:{"type":"TOOL_CALL_DELTA","replyId":"reply_model","toolCallId":"call_1","delta":"{\\"path\\": \\".\\"}"}',
+          'event:TOOL_CALL_END\ndata:{"type":"TOOL_CALL_END","replyId":"reply_model","toolCallId":"call_1"}',
+          'event:TOOL_RESULT_START\ndata:{"type":"TOOL_RESULT_START","replyId":"reply_tool","toolCallId":"call_1","toolCallName":"list_files"}',
+          'event:TOOL_RESULT_END\ndata:{"type":"TOOL_RESULT_END","replyId":"reply_tool","toolCallId":"call_1","state":"success"}',
+          'event:MODEL_CALL_END\ndata:{"type":"MODEL_CALL_END","replyId":"reply_model","usage":{"inputTokens":9588,"outputTokens":83,"totalTokens":9671}}',
+          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","replyId":"reply_text","blockId":"text","delta":"当前文件夹包含 **packages** 和 docs。"}',
+          'event:AGENT_END\ndata:{"type":"AGENT_END","replyId":"reply_root"}'
+        ].join("\n\n")
+    } as unknown as Response);
+
+    await expect(sendAgentTestMessageStream("帮我查看当前文件夹有哪些文件")).resolves.toMatchObject({
+      done: true,
+      thinking: "先确认当前目录。",
+      reply: "当前文件夹包含 **packages** 和 docs。",
+      operations: [
+        expect.objectContaining({
+          id: "agent-reply_root",
+          status: "done",
+          title: "Agent 执行"
+        }),
+        expect.objectContaining({
+          id: "model-reply_model",
+          status: "done",
+          title: "模型调用",
+          rows: expect.arrayContaining([
+            { label: "inputTokens", value: "9588" },
+            { label: "outputTokens", value: "83" },
+            { label: "totalTokens", value: "9671" }
+          ])
+        })
+      ],
+      toolCalls: [
+        {
+          id: "call_1",
+          title: "list_files",
+          subTitle: "call_1",
+          input: { path: "." },
+          output: { state: "success" },
+          status: "done"
+        }
+      ]
+    });
+  });
+
+  it("normalizes structured data blocks into AgentScope operation cards", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "text/event-stream;charset=UTF-8"
+      },
+      text: async () =>
+        [
+          'event:DATA_BLOCK_DELTA\ndata:{"type":"DATA_BLOCK_DELTA","blockId":"rag","delta":"{\\"kind\\":\\"rag\\",\\"subTitle\\":\\"项目资料\\",\\"list\\":[{\\"title\\":\\"README\\",\\"content\\":\\"Airelia desktop app\\",\\"footer\\":\\"README.md\\"}]}"}',
+          'event:DATA_BLOCK_END\ndata:{"type":"DATA_BLOCK_END","blockId":"rag"}',
+          'event:DATA_BLOCK_DELTA\ndata:{"type":"DATA_BLOCK_DELTA","blockId":"web-search","delta":"{\\"kind\\":\\"web_search\\",\\"subTitle\\":\\"Transformer 领域的重要研究\\",\\"list\\":[{\\"title\\":\\"Transformer 登上 Nature\\",\\"subTitle\\":\\"新闻\\",\\"link\\":\\"https://example.com/article\\"}]}"}',
+          'event:DATA_BLOCK_END\ndata:{"type":"DATA_BLOCK_END","blockId":"web-search"}',
+          'event:DATA_BLOCK_DELTA\ndata:{"type":"DATA_BLOCK_DELTA","blockId":"todo","delta":"{\\"kind\\":\\"todo\\",\\"title\\":\\"Task List\\",\\"list\\":[{\\"title\\":\\"查看当前目录\\",\\"status\\":\\"done\\"},{\\"title\\":\\"总结文件\\",\\"status\\":\\"running\\"}]}"}',
+          'event:DATA_BLOCK_END\ndata:{"type":"DATA_BLOCK_END","blockId":"todo"}',
+          'event:DATA_BLOCK_DELTA\ndata:{"type":"DATA_BLOCK_DELTA","blockId":"operate","delta":"{\\"kind\\":\\"operate\\",\\"title\\":\\"读取目录\\",\\"description\\":\\"list_files\\",\\"rows\\":[{\\"label\\":\\"path\\",\\"value\\":\\".\\"}]}"}',
+          'event:DATA_BLOCK_END\ndata:{"type":"DATA_BLOCK_END","blockId":"operate"}',
+          'event:AGENT_END\ndata:{"type":"AGENT_END","replyId":"reply_root"}'
+        ].join("\n\n")
+    } as unknown as Response);
+
+    await expect(sendAgentTestMessageStream("查看资料")).resolves.toMatchObject({
+      ragCards: [
+        {
+          id: "rag",
+          subTitle: "项目资料",
+          list: [{ title: "README", content: "Airelia desktop app", footer: "README.md" }]
+        }
+      ],
+      webSearchCards: [
+        {
+          id: "web-search",
+          subTitle: "Transformer 领域的重要研究",
+          list: [
+            {
+              title: "Transformer 登上 Nature",
+              subTitle: "新闻",
+              link: "https://example.com/article",
+              icon: "https://example.com/favicon.ico"
+            }
+          ]
+        }
+      ],
+      todoCards: [
+        {
+          id: "todo",
+          title: "Task List",
+          list: [
+            { title: "查看当前目录", status: "done" },
+            { title: "总结文件", status: "running" }
+          ]
+        }
+      ],
+      operateCards: [
+        {
+          id: "operate",
+          title: "读取目录",
+          description: "list_files",
+          rows: [{ label: "path", value: "." }]
+        }
+      ]
+    });
+  });
+
   it("uses structured tool result data deltas as ToolCall output", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
