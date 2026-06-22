@@ -2,6 +2,7 @@ import { ChatAnywhere, type ChatAnywhereRef, DefaultCards, type TMessage, uuid }
 import { useCallback, useRef } from "react";
 
 import { sendAgentTestMessageStream } from "../../api";
+import { createAgentResponseCardsFromSnapshot } from "../agent-chat/agentResponseCards";
 
 function TestPage() {
   const ref = useRef<ChatAnywhereRef>(null);
@@ -24,6 +25,7 @@ function TestPage() {
       id: assistantMessageId,
       role: "assistant",
       content: "",
+      cards: [],
       msgStatus: "generating"
     };
 
@@ -36,7 +38,8 @@ function TestPage() {
         onUpdate(snapshot) {
           ref.current?.updateMessage({
             ...assistantMessage,
-            content: snapshot.reply,
+            cards: createAgentResponseCardsFromSnapshot(assistantMessageId, snapshot, "generating"),
+            content: "",
             msgStatus: "generating"
           });
         }
@@ -45,7 +48,8 @@ function TestPage() {
 
       ref.current?.updateMessage({
         ...assistantMessage,
-        content: reply,
+        cards: createAgentResponseCardsFromSnapshot(assistantMessageId, finalSnapshot, "finished", reply),
+        content: "",
         msgStatus: "finished"
       });
     } catch (error) {
