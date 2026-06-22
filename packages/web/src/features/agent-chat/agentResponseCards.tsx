@@ -6,6 +6,7 @@ import type { FC } from "react";
 import type {
   AgentOperationCard,
   AgentRagCard,
+  AgentThinkingBlock,
   AgentStreamPart,
   AgentStreamSnapshot,
   AgentTodoCard,
@@ -20,6 +21,7 @@ export type AgentResponseCardMessage = {
   content: string;
   status?: AgentResponseCardStatus;
   thinking?: string;
+  thinkingBlocks?: AgentThinkingBlock[];
   toolCalls?: AgentToolCall[];
   operations?: AgentOperationCard[];
   operateCards?: AgentOperationCard[];
@@ -33,7 +35,10 @@ type AgentResponseCards = NonNullable<TMessage["cards"]>;
 type OperationStatus = "idle" | "running" | "done" | "error";
 
 type ThinkingCardData = {
+  id: string;
   content: string;
+  title?: string;
+  subTitle?: string;
 };
 
 type ToolCallCardData = AgentToolCall;
@@ -90,15 +95,38 @@ export function createAgentResponseCards(message: AgentResponseCardMessage): Age
 }
 
 function appendThinkingCard(cards: AgentResponseCards, message: AgentResponseCardMessage) {
+  if (message.thinkingBlocks?.length) {
+    for (const thinkingBlock of message.thinkingBlocks) {
+      appendThinkingBlockCard(cards, message.id, thinkingBlock);
+    }
+
+    return;
+  }
+
   if (!message.thinking?.trim()) {
+    return;
+  }
+
+  appendThinkingBlockCard(cards, message.id, {
+    id: "thinking",
+    content: message.thinking,
+    subTitle: "Agent reasoning stream"
+  });
+}
+
+function appendThinkingBlockCard(cards: AgentResponseCards, messageId: string, thinkingBlock: AgentThinkingBlock) {
+  if (!thinkingBlock.content.trim()) {
     return;
   }
 
   cards.push({
     code: "Thinking",
-    id: `${message.id}-thinking`,
+    id: `${messageId}-thinking-${thinkingBlock.id}`,
     data: {
-      content: message.thinking
+      id: thinkingBlock.id,
+      content: thinkingBlock.content,
+      title: thinkingBlock.title,
+      subTitle: thinkingBlock.subTitle ?? thinkingBlock.id
     } satisfies ThinkingCardData,
     component: ThinkingCard as FC
   });
@@ -176,6 +204,7 @@ export function createAgentResponseCardsFromSnapshot(
     content,
     status,
     thinking: snapshot.thinking,
+    thinkingBlocks: snapshot.thinkingBlocks,
     toolCalls: snapshot.toolCalls,
     operations: snapshot.operations,
     operateCards: snapshot.operateCards,
@@ -191,7 +220,14 @@ function createAgentResponseCardsInEventOrder(message: AgentResponseCardMessage)
 
   for (const part of message.parts ?? []) {
     if (part.type === "thinking") {
-      appendThinkingCard(cards, message);
+      const thinkingBlock = message.thinkingBlocks?.find((item) => item.id === part.id);
+
+      if (thinkingBlock) {
+        appendThinkingBlockCard(cards, message.id, thinkingBlock);
+      } else if (!message.thinkingBlocks?.length && !cards.some((card) => card.id === `${message.id}-thinking-thinking`)) {
+        appendThinkingCard(cards, message);
+      }
+
       continue;
     }
 
@@ -279,7 +315,7 @@ export function OperationIcon({ status }: { status: OperationStatus }) {
 }
 
 function ThinkingCard({ data }: { data: ThinkingCardData }) {
-  return <Thinking title="Deep thinking" subTitle="Agent reasoning stream" content={data.content} />;
+  return <Thinking title={data.title ?? "Deep thinking"} subTitle={data.subTitle ?? data.id} content={data.content} />;
 }
 
 function ToolCallCard({ data }: { data: ToolCallCardData }) {

@@ -105,6 +105,14 @@ describe("TestPage", () => {
 
     controller?.enqueue(
       encoder.encode(
+        'event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","blockId":"verify","delta":"再检查工具结果。"}\n\n'
+      )
+    );
+
+    expect(await screen.findByText("再检查工具结果。")).toBeInTheDocument();
+
+    controller?.enqueue(
+      encoder.encode(
         [
           'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","delta":"当前目录包含 "}',
           'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","delta":"**packages**。"}',
@@ -115,14 +123,19 @@ describe("TestPage", () => {
     controller?.close();
 
     const operationCard = await screen.findByText("Agent 执行");
-    const thinkingCard = await screen.findByText("先确认当前目录。");
+    const firstThinkingCard = await screen.findByText("先确认当前目录。");
+    const secondThinkingCard = await screen.findByText("再检查工具结果。");
     const toolCallCard = await screen.findByText("list_files");
     const answerCard = await screen.findByText((_, element) => element?.textContent === "当前目录包含 packages。");
 
     expect(answerCard).toBeInTheDocument();
-    expectBefore(operationCard, thinkingCard);
-    expectBefore(thinkingCard, toolCallCard);
-    expectBefore(toolCallCard, answerCard);
+    expect(await screen.findByText("thinking")).toBeInTheDocument();
+    expect(await screen.findByText("verify")).toBeInTheDocument();
+    expect(screen.getAllByText("Deep thinking")).toHaveLength(2);
+    expectBefore(operationCard, firstThinkingCard);
+    expectBefore(firstThinkingCard, toolCallCard);
+    expectBefore(toolCallCard, secondThinkingCard);
+    expectBefore(secondThinkingCard, answerCard);
     expect(consoleErrorMock.mock.calls.flat().join("\n")).not.toContain('unique "key" prop');
   });
 });

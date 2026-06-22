@@ -138,6 +138,44 @@ describe("api", () => {
     });
   });
 
+  it("keeps separate thinking blocks ordered by event id", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "text/event-stream;charset=UTF-8"
+      },
+      text: async () =>
+        [
+          'event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","replyId":"reply_model_a","blockId":"plan","delta":"先制定计划。"}',
+          'event:TOOL_CALL_START\ndata:{"type":"TOOL_CALL_START","toolCallId":"call_1","toolCallName":"list_files"}',
+          'event:TOOL_RESULT_END\ndata:{"type":"TOOL_RESULT_END","toolCallId":"call_1","result":{"files":["packages"]}}',
+          'event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","replyId":"reply_model_b","blockId":"verify","delta":"再检查工具结果。"}',
+          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","delta":"当前目录包含 packages。"}',
+          'event:AGENT_END\ndata:{"type":"AGENT_END"}'
+        ].join("\n\n")
+    } as unknown as Response);
+
+    await expect(sendAgentTestMessageStream("帮我查看当前文件夹有哪些文件")).resolves.toMatchObject({
+      thinking: "先制定计划。再检查工具结果。",
+      thinkingBlocks: [
+        {
+          id: "reply_model_a:plan",
+          content: "先制定计划。"
+        },
+        {
+          id: "reply_model_b:verify",
+          content: "再检查工具结果。"
+        }
+      ],
+      parts: [
+        { type: "thinking", id: "reply_model_a:plan" },
+        { type: "tool", id: "call_1" },
+        { type: "thinking", id: "reply_model_b:verify" },
+        { type: "text", id: "reply" }
+      ]
+    });
+  });
+
   it("normalizes the real AgentController test stream into AI response parts", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
@@ -163,6 +201,12 @@ describe("api", () => {
     await expect(sendAgentTestMessageStream("帮我查看当前文件夹有哪些文件")).resolves.toMatchObject({
       done: true,
       thinking: "先确认当前目录。",
+      thinkingBlocks: [
+        {
+          id: "reply_model:thinking",
+          content: "先确认当前目录。"
+        }
+      ],
       reply: "当前文件夹包含 **packages** 和 docs。",
       operations: [
         expect.objectContaining({
@@ -194,7 +238,7 @@ describe("api", () => {
       parts: [
         { type: "operation", id: "agent-reply_root" },
         { type: "operation", id: "model-reply_model" },
-        { type: "thinking", id: "thinking" },
+        { type: "thinking", id: "reply_model:thinking" },
         { type: "tool", id: "call_1" },
         { type: "text", id: "reply" }
       ]

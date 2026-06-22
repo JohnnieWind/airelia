@@ -89,6 +89,13 @@ export interface AgentTodoCard {
   }[];
 }
 
+export interface AgentThinkingBlock {
+  id: string;
+  content: string;
+  title?: string;
+  subTitle?: string;
+}
+
 export interface AgentStreamEvent {
   type: string;
   event?: string;
@@ -96,7 +103,7 @@ export interface AgentStreamEvent {
 }
 
 export type AgentStreamPart =
-  | { type: "thinking"; id: "thinking" }
+  | { type: "thinking"; id: string }
   | { type: "text"; id: "reply" }
   | { type: "tool"; id: string }
   | { type: "operation"; id: string }
@@ -109,6 +116,7 @@ export interface AgentStreamSnapshot {
   done: boolean;
   reply: string;
   thinking: string;
+  thinkingBlocks: AgentThinkingBlock[];
   toolCalls: AgentToolCall[];
   operations: AgentOperationCard[];
   operateCards: AgentOperationCard[];
@@ -203,6 +211,7 @@ export async function sendAgentTestMessageStream(message: string, handlers: Agen
     done: true,
     reply: extractAgentReplyFromJson(payload),
     thinking: "",
+    thinkingBlocks: [],
     toolCalls: [],
     operations: [],
     operateCards: [],
@@ -376,8 +385,7 @@ function applyAgentStreamEvent(
   }
 
   if (eventType.includes("THINKING") && delta) {
-    appendPartOnce(snapshot, { type: "thinking", id: "thinking" });
-    snapshot.thinking += delta;
+    applyThinkingEvent(snapshot, event, delta);
     return;
   }
 
@@ -394,6 +402,46 @@ function applyAgentStreamEvent(
   if (isAgentTerminalEvent(eventType)) {
     snapshot.done = true;
   }
+}
+
+function applyThinkingEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, delta: string) {
+  const payload = isRecord(event.data) ? event.data : {};
+  const thinkingId = getThinkingBlockId(payload);
+  const thinkingBlock = getOrCreateThinkingBlock(snapshot, thinkingId, payload);
+
+  appendPartOnce(snapshot, { type: "thinking", id: thinkingId });
+  thinkingBlock.content += delta;
+  snapshot.thinking += delta;
+}
+
+function getThinkingBlockId(payload: Record<string, unknown>): string {
+  const blockId = getFirstStringField(payload, ["blockId", "block_id", "id"]) ?? "thinking";
+  const replyId = getFirstStringField(payload, ["replyId", "reply_id"]);
+
+  return replyId ? `${replyId}:${blockId}` : blockId;
+}
+
+function getOrCreateThinkingBlock(
+  snapshot: AgentStreamSnapshot,
+  id: string,
+  payload: Record<string, unknown>
+): AgentThinkingBlock {
+  const existingBlock = snapshot.thinkingBlocks.find((block) => block.id === id);
+
+  if (existingBlock) {
+    return existingBlock;
+  }
+
+  const thinkingBlock: AgentThinkingBlock = {
+    id,
+    content: "",
+    title: getStringField(payload, "title"),
+    subTitle: getStringField(payload, "subTitle") ?? getStringField(payload, "subtitle")
+  };
+
+  snapshot.thinkingBlocks.push(thinkingBlock);
+
+  return thinkingBlock;
 }
 
 function isAgentTerminalEvent(eventType: string): boolean {
@@ -729,6 +777,7 @@ function createEmptySnapshot(): AgentStreamSnapshot {
     done: false,
     reply: "",
     thinking: "",
+    thinkingBlocks: [],
     toolCalls: [],
     operations: [],
     operateCards: [],
@@ -745,6 +794,7 @@ function cloneSnapshot(snapshot: AgentStreamSnapshot): AgentStreamSnapshot {
     done: snapshot.done,
     reply: snapshot.reply,
     thinking: snapshot.thinking,
+    thinkingBlocks: snapshot.thinkingBlocks.map((block) => ({ ...block })),
     toolCalls: snapshot.toolCalls.map((toolCall) => ({ ...toolCall })),
     operations: snapshot.operations.map((operation) => ({
       ...operation,
