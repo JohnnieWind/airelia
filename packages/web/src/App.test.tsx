@@ -155,7 +155,7 @@ describe("App", () => {
       encoder.encode('event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","blockId":"thinking","delta":"先确认目录结构。"}\n\n')
     );
 
-    expect(await screen.findByText("Deep thinking")).toBeInTheDocument();
+    expect(await screen.findByText("深度思考")).toBeInTheDocument();
     expect(await screen.findByText("先确认目录结构。")).toBeInTheDocument();
 
     streamController?.enqueue(

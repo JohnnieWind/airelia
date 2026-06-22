@@ -176,6 +176,43 @@ describe("api", () => {
     });
   });
 
+  it("keeps separate text blocks ordered by event id", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "text/event-stream;charset=UTF-8"
+      },
+      text: async () =>
+        [
+          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","replyId":"reply_text_a","blockId":"intro","delta":"第一段回复。"}',
+          'event:TOOL_CALL_START\ndata:{"type":"TOOL_CALL_START","toolCallId":"call_1","toolCallName":"execute"}',
+          'event:TOOL_CALL_DELTA\ndata:{"type":"TOOL_CALL_DELTA","toolCallId":"call_1","delta":"{\\"command\\":\\"ls -la\\"}"}',
+          'event:TOOL_RESULT_END\ndata:{"type":"TOOL_RESULT_END","toolCallId":"call_1","result":{"exitCode":0}}',
+          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","replyId":"reply_text_b","blockId":"summary","delta":"第二段回复。"}',
+          'event:AGENT_END\ndata:{"type":"AGENT_END"}'
+        ].join("\n\n")
+    } as unknown as Response);
+
+    await expect(sendAgentTestMessageStream("执行命令并总结")).resolves.toMatchObject({
+      reply: "第一段回复。第二段回复。",
+      textBlocks: [
+        {
+          id: "reply_text_a:intro",
+          content: "第一段回复。"
+        },
+        {
+          id: "reply_text_b:summary",
+          content: "第二段回复。"
+        }
+      ],
+      parts: [
+        { type: "text", id: "reply_text_a:intro" },
+        { type: "tool", id: "call_1" },
+        { type: "text", id: "reply_text_b:summary" }
+      ]
+    });
+  });
+
   it("normalizes the real AgentController test stream into AI response parts", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
@@ -208,6 +245,12 @@ describe("api", () => {
         }
       ],
       reply: "当前文件夹包含 **packages** 和 docs。",
+      textBlocks: [
+        {
+          id: "reply_text:text",
+          content: "当前文件夹包含 **packages** 和 docs。"
+        }
+      ],
       operations: [
         expect.objectContaining({
           id: "agent-reply_root",
@@ -240,7 +283,7 @@ describe("api", () => {
         { type: "operation", id: "model-reply_model" },
         { type: "thinking", id: "reply_model:thinking" },
         { type: "tool", id: "call_1" },
-        { type: "text", id: "reply" }
+        { type: "text", id: "reply_text:text" }
       ]
     });
   });

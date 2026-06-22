@@ -93,14 +93,15 @@ describe("TestPage", () => {
     controller?.enqueue(
       encoder.encode(
         [
-          'event:TOOL_CALL_START\ndata:{"type":"TOOL_CALL_START","toolCallId":"call_1","toolCallName":"list_files"}',
-          'event:TOOL_CALL_DELTA\ndata:{"type":"TOOL_CALL_DELTA","toolCallId":"call_1","delta":"{\\"path\\":\\".\\"}"}',
+          'event:TOOL_CALL_START\ndata:{"type":"TOOL_CALL_START","toolCallId":"call_1","toolCallName":"execute"}',
+          'event:TOOL_CALL_DELTA\ndata:{"type":"TOOL_CALL_DELTA","toolCallId":"call_1","delta":"{\\"command\\":\\"ls -la\\"}"}',
           'event:TOOL_RESULT_END\ndata:{"type":"TOOL_RESULT_END","toolCallId":"call_1","result":{"files":["packages"]}}'
         ].join("\n\n") + "\n\n"
       )
     );
 
-    expect(await screen.findByText("list_files")).toBeInTheDocument();
+    expect(await screen.findByText("执行命令")).toBeInTheDocument();
+    expect(await screen.findByText("ls -la")).toBeInTheDocument();
     expect(await screen.findByText(/packages/)).toBeInTheDocument();
 
     controller?.enqueue(
@@ -114,8 +115,11 @@ describe("TestPage", () => {
     controller?.enqueue(
       encoder.encode(
         [
-          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","delta":"当前目录包含 "}',
-          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","delta":"**packages**。"}',
+          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","replyId":"reply_text_a","blockId":"intro","delta":"第一段回复。"}',
+          'event:TOOL_CALL_START\ndata:{"type":"TOOL_CALL_START","toolCallId":"call_2","toolCallName":"execute"}',
+          'event:TOOL_CALL_DELTA\ndata:{"type":"TOOL_CALL_DELTA","toolCallId":"call_2","delta":"{\\"command\\":\\"pwd\\"}"}',
+          'event:TOOL_RESULT_END\ndata:{"type":"TOOL_RESULT_END","toolCallId":"call_2","result":{"cwd":"/tmp"}}',
+          'event:TEXT_BLOCK_DELTA\ndata:{"type":"TEXT_BLOCK_DELTA","replyId":"reply_text_b","blockId":"summary","delta":"第二段回复。"}',
           'event:AGENT_END\ndata:{"type":"AGENT_END","replyId":"reply_root"}'
         ].join("\n\n") + "\n\n"
       )
@@ -125,17 +129,21 @@ describe("TestPage", () => {
     const operationCard = await screen.findByText("Agent 执行");
     const firstThinkingCard = await screen.findByText("先确认当前目录。");
     const secondThinkingCard = await screen.findByText("再检查工具结果。");
-    const toolCallCard = await screen.findByText("list_files");
-    const answerCard = await screen.findByText((_, element) => element?.textContent === "当前目录包含 packages。");
+    const firstToolCallCard = await screen.findByText("ls -la");
+    const firstTextCard = await screen.findByText("第一段回复。");
+    const secondToolCallCard = await screen.findByText("pwd");
+    const secondTextCard = await screen.findByText("第二段回复。");
 
-    expect(answerCard).toBeInTheDocument();
+    expect(secondTextCard).toBeInTheDocument();
     expect(await screen.findByText("thinking")).toBeInTheDocument();
     expect(await screen.findByText("verify")).toBeInTheDocument();
-    expect(screen.getAllByText("Deep thinking")).toHaveLength(2);
+    expect(screen.getAllByText("深度思考")).toHaveLength(2);
     expectBefore(operationCard, firstThinkingCard);
-    expectBefore(firstThinkingCard, toolCallCard);
-    expectBefore(toolCallCard, secondThinkingCard);
-    expectBefore(secondThinkingCard, answerCard);
+    expectBefore(firstThinkingCard, firstToolCallCard);
+    expectBefore(firstToolCallCard, secondThinkingCard);
+    expectBefore(secondThinkingCard, firstTextCard);
+    expectBefore(firstTextCard, secondToolCallCard);
+    expectBefore(secondToolCallCard, secondTextCard);
     expect(consoleErrorMock.mock.calls.flat().join("\n")).not.toContain('unique "key" prop');
   });
 });

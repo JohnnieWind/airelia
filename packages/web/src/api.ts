@@ -96,6 +96,11 @@ export interface AgentThinkingBlock {
   subTitle?: string;
 }
 
+export interface AgentTextBlock {
+  id: string;
+  content: string;
+}
+
 export interface AgentStreamEvent {
   type: string;
   event?: string;
@@ -104,7 +109,7 @@ export interface AgentStreamEvent {
 
 export type AgentStreamPart =
   | { type: "thinking"; id: string }
-  | { type: "text"; id: "reply" }
+  | { type: "text"; id: string }
   | { type: "tool"; id: string }
   | { type: "operation"; id: string }
   | { type: "operate"; id: string }
@@ -117,6 +122,7 @@ export interface AgentStreamSnapshot {
   reply: string;
   thinking: string;
   thinkingBlocks: AgentThinkingBlock[];
+  textBlocks: AgentTextBlock[];
   toolCalls: AgentToolCall[];
   operations: AgentOperationCard[];
   operateCards: AgentOperationCard[];
@@ -212,6 +218,7 @@ export async function sendAgentTestMessageStream(message: string, handlers: Agen
     reply: extractAgentReplyFromJson(payload),
     thinking: "",
     thinkingBlocks: [],
+    textBlocks: [],
     toolCalls: [],
     operations: [],
     operateCards: [],
@@ -390,8 +397,7 @@ function applyAgentStreamEvent(
   }
 
   if (isAssistantTextDelta(eventType) && delta) {
-    appendPartOnce(snapshot, { type: "text", id: "reply" });
-    snapshot.reply += delta;
+    applyTextEvent(snapshot, event, delta);
     return;
   }
 
@@ -414,8 +420,22 @@ function applyThinkingEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEve
   snapshot.thinking += delta;
 }
 
+function applyTextEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, delta: string) {
+  const payload = isRecord(event.data) ? event.data : {};
+  const textId = getStreamBlockId(payload, "reply");
+  const textBlock = getOrCreateTextBlock(snapshot, textId);
+
+  appendPartOnce(snapshot, { type: "text", id: textId });
+  textBlock.content += delta;
+  snapshot.reply += delta;
+}
+
 function getThinkingBlockId(payload: Record<string, unknown>): string {
-  const blockId = getFirstStringField(payload, ["blockId", "block_id", "id"]) ?? "thinking";
+  return getStreamBlockId(payload, "thinking");
+}
+
+function getStreamBlockId(payload: Record<string, unknown>, fallbackId: string): string {
+  const blockId = getFirstStringField(payload, ["blockId", "block_id", "id"]) ?? fallbackId;
   const replyId = getFirstStringField(payload, ["replyId", "reply_id"]);
 
   return replyId ? `${replyId}:${blockId}` : blockId;
@@ -442,6 +462,23 @@ function getOrCreateThinkingBlock(
   snapshot.thinkingBlocks.push(thinkingBlock);
 
   return thinkingBlock;
+}
+
+function getOrCreateTextBlock(snapshot: AgentStreamSnapshot, id: string): AgentTextBlock {
+  const existingBlock = snapshot.textBlocks.find((block) => block.id === id);
+
+  if (existingBlock) {
+    return existingBlock;
+  }
+
+  const textBlock: AgentTextBlock = {
+    id,
+    content: ""
+  };
+
+  snapshot.textBlocks.push(textBlock);
+
+  return textBlock;
 }
 
 function isAgentTerminalEvent(eventType: string): boolean {
@@ -778,6 +815,7 @@ function createEmptySnapshot(): AgentStreamSnapshot {
     reply: "",
     thinking: "",
     thinkingBlocks: [],
+    textBlocks: [],
     toolCalls: [],
     operations: [],
     operateCards: [],
@@ -795,6 +833,7 @@ function cloneSnapshot(snapshot: AgentStreamSnapshot): AgentStreamSnapshot {
     reply: snapshot.reply,
     thinking: snapshot.thinking,
     thinkingBlocks: snapshot.thinkingBlocks.map((block) => ({ ...block })),
+    textBlocks: snapshot.textBlocks.map((block) => ({ ...block })),
     toolCalls: snapshot.toolCalls.map((toolCall) => ({ ...toolCall })),
     operations: snapshot.operations.map((operation) => ({
       ...operation,

@@ -9,6 +9,7 @@ import type {
   AgentThinkingBlock,
   AgentStreamPart,
   AgentStreamSnapshot,
+  AgentTextBlock,
   AgentTodoCard,
   AgentToolCall,
   AgentWebSearchCard
@@ -22,6 +23,7 @@ export type AgentResponseCardMessage = {
   status?: AgentResponseCardStatus;
   thinking?: string;
   thinkingBlocks?: AgentThinkingBlock[];
+  textBlocks?: AgentTextBlock[];
   toolCalls?: AgentToolCall[];
   operations?: AgentOperationCard[];
   operateCards?: AgentOperationCard[];
@@ -178,16 +180,45 @@ function appendTodoCard(cards: AgentResponseCards, messageId: string, todoCard: 
 }
 
 function appendTextCard(cards: AgentResponseCards, message: AgentResponseCardMessage) {
+  if (message.textBlocks?.length) {
+    for (const textBlock of message.textBlocks) {
+      appendTextBlockCard(cards, message.id, textBlock, message.status);
+    }
+
+    return;
+  }
+
   if (!message.content && message.status !== "generating") {
+    return;
+  }
+
+  appendTextBlockCard(
+    cards,
+    message.id,
+    {
+      id: "reply",
+      content: message.content
+    },
+    message.status
+  );
+}
+
+function appendTextBlockCard(
+  cards: AgentResponseCards,
+  messageId: string,
+  textBlock: AgentTextBlock,
+  status?: AgentResponseCardStatus
+) {
+  if (!textBlock.content && status !== "generating") {
     return;
   }
 
   cards.push({
     code: "Text",
-    id: `${message.id}-markdown`,
+    id: `${messageId}-markdown-${textBlock.id}`,
     data: {
-      content: message.content,
-      generating: message.status === "generating"
+      content: textBlock.content,
+      generating: status === "generating"
     } satisfies MarkdownCardData,
     component: MarkdownCard as FC
   });
@@ -205,6 +236,7 @@ export function createAgentResponseCardsFromSnapshot(
     status,
     thinking: snapshot.thinking,
     thinkingBlocks: snapshot.thinkingBlocks,
+    textBlocks: snapshot.textBlocks,
     toolCalls: snapshot.toolCalls,
     operations: snapshot.operations,
     operateCards: snapshot.operateCards,
@@ -232,7 +264,14 @@ function createAgentResponseCardsInEventOrder(message: AgentResponseCardMessage)
     }
 
     if (part.type === "text") {
-      appendTextCard(cards, message);
+      const textBlock = message.textBlocks?.find((item) => item.id === part.id);
+
+      if (textBlock) {
+        appendTextBlockCard(cards, message.id, textBlock, message.status);
+      } else if (!message.textBlocks?.length && !cards.some((card) => card.id === `${message.id}-markdown-reply`)) {
+        appendTextCard(cards, message);
+      }
+
       continue;
     }
 
@@ -315,11 +354,36 @@ export function OperationIcon({ status }: { status: OperationStatus }) {
 }
 
 function ThinkingCard({ data }: { data: ThinkingCardData }) {
-  return <Thinking title={data.title ?? "Deep thinking"} subTitle={data.subTitle ?? data.id} content={data.content} />;
+  return <Thinking title={data.title ?? "深度思考"} subTitle={data.subTitle ?? data.id} content={data.content} />;
+}
+
+function formatToolCallTitle(toolCall: AgentToolCall): string {
+  return isExecuteToolCall(toolCall) ? "执行命令" : toolCall.title;
+}
+
+function formatToolCallSubTitle(toolCall: AgentToolCall): string {
+  const command = isRecord(toolCall.input) && typeof toolCall.input.command === "string" ? toolCall.input.command : undefined;
+
+  if (isExecuteToolCall(toolCall) && command) {
+    return command;
+  }
+
+  return toolCall.subTitle || toolCall.status;
+}
+
+function isExecuteToolCall(toolCall: AgentToolCall): boolean {
+  return toolCall.title.trim().toLowerCase() === "execute";
 }
 
 function ToolCallCard({ data }: { data: ToolCallCardData }) {
-  return <ToolCall title={data.title} subTitle={data.subTitle || data.status} input={data.input} output={data.output} />;
+  return (
+    <ToolCall
+      title={formatToolCallTitle(data)}
+      subTitle={formatToolCallSubTitle(data)}
+      input={data.input}
+      output={data.output}
+    />
+  );
 }
 
 function OperationCard({ data }: { data: OperationCardData }) {
@@ -365,4 +429,8 @@ function TodoCard({ data }: { data: TodoCardData }) {
 
 function MarkdownCard({ data }: { data: MarkdownCardData }) {
   return <Markdown content={data.content} allowHtml={false} disableImage={true} cursor={data.generating} />;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

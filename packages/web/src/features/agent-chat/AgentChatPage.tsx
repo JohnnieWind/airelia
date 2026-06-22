@@ -9,6 +9,7 @@ import {
   type AgentRagCard,
   type AgentThinkingBlock,
   type AgentStreamPart,
+  type AgentTextBlock,
   type AgentTodoCard,
   type AgentToolCall,
   type AgentWebSearchCard
@@ -22,6 +23,7 @@ type ChatMessage = {
   status?: "error" | "finished" | "generating";
   thinking?: string;
   thinkingBlocks?: AgentThinkingBlock[];
+  textBlocks?: AgentTextBlock[];
   toolCalls?: AgentToolCall[];
   operations?: AgentOperationCard[];
   operateCards?: AgentOperationCard[];
@@ -131,6 +133,7 @@ function AgentChatPage() {
                     status: "generating",
                     thinking: snapshot.thinking,
                     thinkingBlocks: snapshot.thinkingBlocks,
+                    textBlocks: snapshot.textBlocks,
                     toolCalls: snapshot.toolCalls,
                     operations: snapshot.operations,
                     operateCards: snapshot.operateCards,
@@ -161,6 +164,7 @@ function AgentChatPage() {
                 status: "finished",
                 thinking: finalSnapshot.thinking,
                 thinkingBlocks: finalSnapshot.thinkingBlocks,
+                textBlocks: finalSnapshot.textBlocks,
                 toolCalls: finalSnapshot.toolCalls,
                 operations: finalSnapshot.operations,
                 operateCards: finalSnapshot.operateCards,
