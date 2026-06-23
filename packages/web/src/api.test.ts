@@ -28,7 +28,7 @@ describe("api", () => {
       expect.objectContaining({
         body: JSON.stringify({
           sessionId: "1",
-          userId: "user001",
+          userId: "WUZHENGYU458",
           message: "查看当前目录文件"
         }),
         method: "POST"
@@ -64,10 +64,10 @@ describe("api", () => {
       json: async () => []
     } as unknown as Response);
 
-    await expect(fetchAgentSessionContext("user001", "1")).resolves.toEqual([]);
+    await expect(fetchAgentSessionContext("WUZHENGYU458", "1")).resolves.toEqual([]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/agent/agent/sessionContext?userId=user001&sessionId=1",
+      "/api/agent/agent/sessionContext?userId=WUZHENGYU458&sessionId=1",
       expect.objectContaining({
         headers: expect.objectContaining({
           "Content-Type": "application/json"

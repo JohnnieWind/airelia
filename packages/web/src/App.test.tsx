@@ -152,7 +152,7 @@ describe("App", () => {
         expect.objectContaining({
           body: JSON.stringify({
             sessionId: "1",
-            userId: "user001",
+            userId: "WUZHENGYU458",
             message: "查看当前目录文件"
           }),
           method: "POST"

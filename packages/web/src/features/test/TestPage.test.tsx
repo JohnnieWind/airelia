@@ -43,7 +43,7 @@ describe("TestPage", () => {
         expect.objectContaining({
           body: JSON.stringify({
             sessionId: "1",
-            userId: "user001",
+            userId: "WUZHENGYU458",
             message: "帮我查看当前文件夹有哪些文件"
           }),
           method: "POST"

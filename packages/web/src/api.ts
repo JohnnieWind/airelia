@@ -258,7 +258,7 @@ export async function sendAgentTestMessageStream(message: string, handlers: Agen
 function postAgentTestMessage(message: string): Promise<Response> {
   const request: AgentTestRequest = {
     sessionId: "1",
-    userId: "user001",
+    userId: "WUZHENGYU458",
     message
   };
 

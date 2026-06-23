@@ -211,7 +211,7 @@ function AgentChatPage() {
             </h1>
           </div>
           <div className="rounded-full border border-[#dff0e9] bg-[#f2fbf7] px-3 py-1 text-xs font-bold text-[#16845f]">
-            sessionId 1 · user001
+            sessionId 1 · WUZHENGYU458
           </div>
         </header>
 
@@ -263,7 +263,7 @@ function AgentChatPage() {
                   <OperateCard.LineBody>
                     <div className="ml-4 grid gap-1.5 text-xs text-[#5c5d62]">
                       <span>sessionId: 1</span>
-                      <span>userId: user001</span>
+                      <span>userId: WUZHENGYU458</span>
                       <span>message: {operation.input}</span>
                     </div>
                   </OperateCard.LineBody>
