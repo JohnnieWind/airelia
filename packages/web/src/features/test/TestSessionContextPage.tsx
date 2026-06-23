@@ -5,6 +5,9 @@ import {
   fetchAgentSessionContext,
   sendAgentTestMessageStream,
   type AgentSessionContextMessage,
+  type AgentStreamPart,
+  type AgentTextBlock,
+  type AgentThinkingBlock,
   type AgentToolCall
 } from "../../api";
 import { createAgentResponseCardsFromSnapshot } from "../agent-chat/agentResponseCards";
@@ -14,9 +17,10 @@ const sessionContextSessionId = "1";
 
 type AssistantHistoryDraft = {
   id: string;
-  content: string;
-  thinkingContent: string;
+  thinkingBlocks: AgentThinkingBlock[];
+  textBlocks: AgentTextBlock[];
   toolCalls: AgentToolCall[];
+  parts: AgentStreamPart[];
 };
 
 function TestSessionContextPage() {
@@ -172,8 +176,8 @@ function normalizeSessionContextMessages(contextMessages: AgentSessionContextMes
     }
 
     if (message.role === "ASSISTANT") {
-      flushPendingAssistant();
-      pendingAssistant = createAssistantHistoryDraft(message);
+      pendingAssistant ??= createAssistantHistoryDraft(message);
+      appendAssistantHistoryBlocks(pendingAssistant, message);
       continue;
     }
 
@@ -200,44 +204,35 @@ function createTextMessage(message: AgentSessionContextMessage, role: "assistant
 function createAssistantHistoryDraft(message: AgentSessionContextMessage): AssistantHistoryDraft {
   return {
     id: message.id || uuid(),
-    content: extractTextContent(message.content),
-    thinkingContent: extractThinkingContent(message.content),
-    toolCalls: extractToolUseCalls(message.content)
+    thinkingBlocks: [],
+    textBlocks: [],
+    toolCalls: [],
+    parts: []
   };
 }
 
 function createAssistantHistoryMessage(draft: AssistantHistoryDraft): TMessage {
+  const content = draft.textBlocks.map((block) => block.content).join("\n\n").trim();
+  const thinkingContent = draft.thinkingBlocks.map((block) => block.content).join("\n\n").trim();
   const cards = createAgentResponseCardsFromSnapshot(
     draft.id,
     {
       done: true,
-      reply: draft.content,
-      thinking: draft.thinkingContent,
-      thinkingBlocks: draft.thinkingContent
-        ? [
-            {
-              id: `${draft.id}:thinking`,
-              content: draft.thinkingContent,
-              loading: false
-            }
-          ]
-        : [],
-      textBlocks: draft.content ? [{ id: `${draft.id}:text`, content: draft.content }] : [],
+      reply: content,
+      thinking: thinkingContent,
+      thinkingBlocks: draft.thinkingBlocks,
+      textBlocks: draft.textBlocks,
       toolCalls: draft.toolCalls,
       operations: [],
       operateCards: [],
       ragCards: [],
       webSearchCards: [],
       todoCards: [],
-      parts: [
-        ...(draft.thinkingContent ? ([{ type: "thinking", id: `${draft.id}:thinking` }] as const) : []),
-        ...draft.toolCalls.map((toolCall) => ({ type: "tool" as const, id: toolCall.id })),
-        ...(draft.content ? ([{ type: "text", id: `${draft.id}:text` }] as const) : [])
-      ],
+      parts: draft.parts,
       events: []
     },
     "finished",
-    draft.content
+    content
   );
 
   return {
@@ -249,12 +244,97 @@ function createAssistantHistoryMessage(draft: AssistantHistoryDraft): TMessage {
   };
 }
 
+function appendAssistantHistoryBlocks(draft: AssistantHistoryDraft, message: AgentSessionContextMessage) {
+  const messageId = message.id || uuid();
+  let thinkingIndex = 0;
+  let textIndex = 0;
+
+  for (const block of message.content) {
+    if (block.type === "thinking") {
+      const content = typeof block.thinking === "string" ? block.thinking.trim() : "";
+
+      if (content) {
+        const thinkingBlock: AgentThinkingBlock = {
+          id: `${messageId}:thinking:${thinkingIndex}`,
+          content,
+          loading: false
+        };
+
+        draft.thinkingBlocks.push(thinkingBlock);
+        draft.parts.push({ type: "thinking", id: thinkingBlock.id });
+      }
+
+      thinkingIndex += 1;
+      continue;
+    }
+
+    if (block.type === "tool_use") {
+      const toolCall = createToolUseCall(block);
+
+      if (toolCall) {
+        mergeToolUseCall(draft, toolCall);
+      }
+
+      continue;
+    }
+
+    if (block.type === "text") {
+      const content = typeof block.text === "string" ? block.text.trim() : "";
+
+      if (content) {
+        const textBlock: AgentTextBlock = {
+          id: `${messageId}:text:${textIndex}`,
+          content
+        };
+
+        draft.textBlocks.push(textBlock);
+        draft.parts.push({ type: "text", id: textBlock.id });
+      }
+
+      textIndex += 1;
+    }
+  }
+}
+
+function createToolUseCall(block: Record<string, unknown>): AgentToolCall | undefined {
+  if (block.type !== "tool_use") {
+    return undefined;
+  }
+
+  const id = getStringValue(block.id) || uuid();
+  const name = getStringValue(block.name) || "Call Tool";
+
+  return {
+    id,
+    title: name,
+    subTitle: id,
+    input: isRecord(block.input) ? block.input : {},
+    output: { status: getStringValue(block.state) || "allowed" },
+    status: "done"
+  };
+}
+
+function mergeToolUseCall(draft: AssistantHistoryDraft, toolCall: AgentToolCall) {
+  const existingToolCall = draft.toolCalls.find((item) => item.id === toolCall.id);
+
+  if (existingToolCall) {
+    existingToolCall.title = toolCall.title || existingToolCall.title;
+    existingToolCall.subTitle = toolCall.subTitle || existingToolCall.subTitle;
+    existingToolCall.input = toolCall.input;
+    return;
+  }
+
+  draft.toolCalls.push(toolCall);
+  draft.parts.push({ type: "tool", id: toolCall.id });
+}
+
 function mergeToolResultCalls(draft: AssistantHistoryDraft, toolResultCalls: AgentToolCall[]) {
   for (const toolResultCall of toolResultCalls) {
     const existingToolCall = draft.toolCalls.find((toolCall) => toolCall.id === toolResultCall.id);
 
     if (!existingToolCall) {
       draft.toolCalls.push(toolResultCall);
+      draft.parts.push({ type: "tool", id: toolResultCall.id });
       continue;
     }
 
@@ -271,36 +351,6 @@ function extractTextContent(contentBlocks: Record<string, unknown>[]): string {
     .map((block) => (typeof block.text === "string" ? block.text : ""))
     .join("")
     .trim();
-}
-
-function extractThinkingContent(contentBlocks: Record<string, unknown>[]): string {
-  return contentBlocks
-    .filter((block) => block.type === "thinking")
-    .map((block) => (typeof block.thinking === "string" ? block.thinking : ""))
-    .join("")
-    .trim();
-}
-
-function extractToolUseCalls(contentBlocks: Record<string, unknown>[]): AgentToolCall[] {
-  return contentBlocks.flatMap((block): AgentToolCall[] => {
-    if (block.type !== "tool_use") {
-      return [];
-    }
-
-    const id = getStringValue(block.id) || uuid();
-    const name = getStringValue(block.name) || "Call Tool";
-
-    return [
-      {
-        id,
-        title: name,
-        subTitle: id,
-        input: isRecord(block.input) ? block.input : {},
-        output: { status: getStringValue(block.state) || "allowed" },
-        status: "done"
-      }
-    ];
-  });
 }
 
 function extractToolResultCalls(contentBlocks: Record<string, unknown>[]): AgentToolCall[] {

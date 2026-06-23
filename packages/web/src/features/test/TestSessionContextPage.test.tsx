@@ -64,6 +64,18 @@ describe("TestSessionContextPage", () => {
           usage: null
         },
         {
+          id: "assistant-2",
+          name: "default",
+          role: "ASSISTANT",
+          content: [
+            { type: "thinking", thinking: "继续确认用户信息。", metadata: null },
+            { type: "text", text: "第二段回复。" }
+          ],
+          metadata: {},
+          timestamp: "2026-06-23 15:06:12.102",
+          usage: null
+        },
+        {
           id: "user-1",
           name: null,
           role: "USER",
@@ -87,6 +99,7 @@ describe("TestSessionContextPage", () => {
     expect(await screen.findByText("README 已写入。")).toBeInTheDocument();
     expect(document.querySelectorAll('.ant-bubble[data-role="assistant"]')).toHaveLength(1);
     expect(screen.getAllByText("执行命令")).toHaveLength(1);
+    expect(screen.getByText("第二段回复。")).toBeInTheDocument();
     expect(screen.getByText("pwd")).toBeInTheDocument();
     expect(screen.getByText("搞定了吗")).toBeInTheDocument();
     expect(screen.queryByText("internal summary should stay hidden")).not.toBeInTheDocument();
