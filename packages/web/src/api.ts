@@ -30,6 +30,16 @@ export interface AgentTestRequest {
 /** 测试 Agent 接口返回结构暂不固定，保留原始 JSON 交给页面做兼容展示。 */
 export type AgentTestResponse = Record<string, unknown>;
 
+export interface AgentSessionContextMessage {
+  id: string;
+  name: string | null;
+  role: string;
+  content: Record<string, unknown>[];
+  metadata: Record<string, unknown>;
+  timestamp: string;
+  usage: Record<string, unknown> | null;
+}
+
 export type AgentToolPayload = string | Record<string, unknown>;
 
 export interface AgentToolCall {
@@ -176,6 +186,16 @@ export function sendAgentEcho(message: string): Promise<AgentEchoResponse> {
     method: "POST",
     body: JSON.stringify({ message })
   });
+}
+
+/** 读取固定测试用户的 AgentScope 会话上下文，用于恢复菜单展示历史对话。 */
+export function fetchAgentSessionContext(userId: string, sessionId: string): Promise<AgentSessionContextMessage[]> {
+  const searchParams = new URLSearchParams({
+    userId,
+    sessionId
+  });
+
+  return requestJson<AgentSessionContextMessage[]>(`/api/agent/agent/sessionContext?${searchParams.toString()}`);
 }
 
 /** 向本地测试 Agent 发送一条消息。 */

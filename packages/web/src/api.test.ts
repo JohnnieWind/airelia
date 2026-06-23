@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { sendAgentTestMessage, sendAgentTestMessageStream, type AgentStreamSnapshot } from "./api";
+import { fetchAgentSessionContext, sendAgentTestMessage, sendAgentTestMessageStream, type AgentStreamSnapshot } from "./api";
 
 describe("api", () => {
   afterEach(() => {
@@ -52,6 +52,27 @@ describe("api", () => {
 
     await expect(sendAgentTestMessage("查看当前目录文件")).rejects.toThrow(
       "测试模型 API Key 未配置，请设置 AIRELIA_AGENT_TEST_API_KEY 后重启后端服务。"
+    );
+  });
+
+  it("fetches the fixed user session context from the agent endpoint", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "application/json"
+      },
+      json: async () => []
+    } as unknown as Response);
+
+    await expect(fetchAgentSessionContext("user001", "1")).resolves.toEqual([]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/agent/agent/sessionContext?userId=user001&sessionId=1",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "Content-Type": "application/json"
+        })
+      })
     );
   });
 

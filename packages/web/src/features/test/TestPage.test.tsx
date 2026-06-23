@@ -33,7 +33,7 @@ describe("TestPage", () => {
     expect(testPage.className).not.toContain("rounded");
     expect(testPage.className).not.toContain("border ");
 
-    const input = screen.getByPlaceholderText("Ask ChatAnywhere");
+    const input = screen.getByPlaceholderText("今天帮你做些什么？");
     fireEvent.change(input, { target: { value: "帮我查看当前文件夹有哪些文件" } });
     fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
 
@@ -80,7 +80,7 @@ describe("TestPage", () => {
     expect(testPage.className).not.toContain("rounded");
     expect(testPage.className).not.toContain("border ");
 
-    const input = screen.getByPlaceholderText("Ask ChatAnywhere");
+    const input = screen.getByPlaceholderText("今天帮你做些什么？");
     fireEvent.change(input, { target: { value: "帮我查看当前文件夹有哪些文件" } });
     fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
 

@@ -31,6 +31,7 @@ import { ReactNode, useState } from "react";
 import EyeFollower from "./components/EyeFollower.tsx";
 import AgentChatPage from "./features/agent-chat/AgentChatPage";
 import TestPage from "./features/test/TestPage.tsx";
+import TestSessionContextPage from "./features/test/TestSessionContextPage.tsx";
 
 const primaryNav = [
   { label: "新建任务", icon: MessageCirclePlus },
@@ -39,7 +40,8 @@ const primaryNav = [
   { label: "专家", icon: BriefcaseBusiness, note: "技能·连接器" },
   { label: "自动化", icon: Workflow },
   { label: "更多", icon: Grid2X2, note: "资料库·灵感" },
-  { label: "测试", icon: Bot }
+  { label: "测试", icon: Bot },
+  { label: "恢复", icon: Bot }
 ];
 
 const recentTasks = [
@@ -87,7 +89,15 @@ function App() {
         <Sidebar activeNav={activeNav} onSelectNav={setActiveNav} />
 
         <section className="relative flex h-screen min-h-0 flex-col overflow-hidden p-0" data-testid="app-content">
-          {activeNav === "测试" ? <TestPage/> : (activeNav === "助理" ? <AgentChatPage /> : <WorkbenchHome />)}
+          {activeNav === "恢复" ? (
+            <TestSessionContextPage />
+          ) : activeNav === "测试" ? (
+            <TestPage />
+          ) : activeNav === "助理" ? (
+            <AgentChatPage />
+          ) : (
+            <WorkbenchHome />
+          )}
         </section>
       </div>
     </main>

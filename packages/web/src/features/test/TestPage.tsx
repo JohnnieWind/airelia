@@ -73,14 +73,14 @@ function TestPage() {
         cardConfig={DefaultCards}
         onInput={{
           onSubmit,
-          placeholder: "Ask ChatAnywhere"
+          placeholder: "今天帮你做些什么？"
         }}
         onStop={onStop}
         ref={ref}
         uiConfig={{
           background: "#ffffff",
-          disclaimer: "ChatAnywhere test page",
-          header: <div className="px-4 py-3 text-sm font-semibold text-[#191a1d]">ChatAnywhere Test</div>
+          disclaimer: "内容由AI生成，请注意甄别",
+          header: <div className="px-4 py-3 text-sm font-semibold text-[#191a1d]">艾瑞莉娅Agent</div>
         }}
       />
     </div>
