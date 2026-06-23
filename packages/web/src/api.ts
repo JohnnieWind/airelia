@@ -414,6 +414,15 @@ function applyAgentStreamEvent(
 function applyThinkingEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, delta?: string) {
   const payload = isRecord(event.data) ? event.data : {};
   const eventType = event.type.toUpperCase();
+
+  if (eventType.includes("END") && finishExistingThinkingBlocks(snapshot, payload)) {
+    return;
+  }
+
+  if (eventType.includes("END") && !hasExplicitStreamBlockId(payload)) {
+    return;
+  }
+
   const thinkingId = getThinkingBlockId(payload);
   const thinkingBlock = getOrCreateThinkingBlock(snapshot, thinkingId, payload);
 
@@ -434,6 +443,35 @@ function applyThinkingEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEve
   }
 }
 
+function finishExistingThinkingBlocks(snapshot: AgentStreamSnapshot, payload: Record<string, unknown>): boolean {
+  const explicitBlockId = getExplicitStreamBlockId(payload);
+  const replyId = getFirstStringField(payload, ["replyId", "reply_id"]);
+
+  if (explicitBlockId) {
+    const thinkingId = replyId ? `${replyId}:${explicitBlockId}` : explicitBlockId;
+    const thinkingBlock = snapshot.thinkingBlocks.find((block) => block.id === thinkingId);
+
+    if (!thinkingBlock) {
+      return false;
+    }
+
+    thinkingBlock.loading = false;
+    return true;
+  }
+
+  // AgentEvent.id identifies the event itself, so end events without blockId must match existing blocks by reply.
+  const matchingBlocks = snapshot.thinkingBlocks.filter((block) => belongsToReply(block.id, replyId));
+  const blocksToFinish = matchingBlocks.some((block) => block.loading)
+    ? matchingBlocks.filter((block) => block.loading)
+    : matchingBlocks;
+
+  for (const thinkingBlock of blocksToFinish) {
+    thinkingBlock.loading = false;
+  }
+
+  return blocksToFinish.length > 0;
+}
+
 function applyTextEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, delta: string) {
   const payload = isRecord(event.data) ? event.data : {};
   const textId = getStreamBlockId(payload, "reply");
@@ -448,11 +486,27 @@ function getThinkingBlockId(payload: Record<string, unknown>): string {
   return getStreamBlockId(payload, "thinking");
 }
 
+function hasExplicitStreamBlockId(payload: Record<string, unknown>): boolean {
+  return Boolean(getExplicitStreamBlockId(payload));
+}
+
+function getExplicitStreamBlockId(payload: Record<string, unknown>): string | undefined {
+  return getFirstStringField(payload, ["blockId", "block_id"]);
+}
+
 function getStreamBlockId(payload: Record<string, unknown>, fallbackId: string): string {
   const blockId = getFirstStringField(payload, ["blockId", "block_id", "id"]) ?? fallbackId;
   const replyId = getFirstStringField(payload, ["replyId", "reply_id"]);
 
   return replyId ? `${replyId}:${blockId}` : blockId;
+}
+
+function belongsToReply(blockId: string, replyId?: string): boolean {
+  if (!replyId) {
+    return true;
+  }
+
+  return blockId === replyId || blockId.startsWith(`${replyId}:`);
 }
 
 function getOrCreateThinkingBlock(

@@ -238,6 +238,66 @@ describe("api", () => {
     });
   });
 
+  it("finishes a thinking block immediately when the end event omits blockId", async () => {
+    let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const encoder = new TextEncoder();
+    const updates: AgentStreamSnapshot[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "text/event-stream;charset=UTF-8"
+      },
+      body: new ReadableStream<Uint8Array>({
+        start(streamController) {
+          controller = streamController;
+        }
+      })
+    } as unknown as Response);
+
+    const promise = sendAgentTestMessageStream("展示思考结束状态", {
+      onUpdate(snapshot) {
+        updates.push(snapshot);
+      }
+    });
+
+    controller?.enqueue(
+      encoder.encode(
+        [
+          'event:THINKING_BLOCK_START\ndata:{"type":"THINKING_BLOCK_START","id":"event-start","replyId":"reply_model","blockId":"thinking"}',
+          'event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","id":"event-delta","replyId":"reply_model","blockId":"thinking","delta":"正在分析。"}'
+        ].join("\n\n") + "\n\n"
+      )
+    );
+    await flushPromises();
+
+    expect(updates.at(-1)?.thinkingBlocks).toMatchObject([
+      {
+        id: "reply_model:thinking",
+        loading: true
+      }
+    ]);
+
+    controller?.enqueue(
+      encoder.encode('event:THINKING_BLOCK_END\ndata:{"type":"THINKING_BLOCK_END","id":"event-end","replyId":"reply_model"}\n\n')
+    );
+    await flushPromises();
+
+    expect(updates.at(-1)?.thinkingBlocks).toMatchObject([
+      {
+        id: "reply_model:thinking",
+        content: "正在分析。",
+        loading: false
+      }
+    ]);
+    expect(updates.at(-1)?.thinkingBlocks).toHaveLength(1);
+
+    controller?.enqueue(encoder.encode('event:AGENT_END\ndata:{"type":"AGENT_END","replyId":"reply_root"}\n\n'));
+    controller?.close();
+
+    await promise;
+  });
+
   it("does not finish thinking block loading from the agent end event", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
