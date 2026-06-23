@@ -79,13 +79,14 @@ describe("TestSessionContextPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/agent/agent/sessionContext?userId=user001&sessionId=1",
+        "/api/agent/agent/sessionContext?userId=WUZHENGYU458&sessionId=1",
         expect.anything()
       );
     });
 
     expect(await screen.findByText("README 已写入。")).toBeInTheDocument();
-    expect(screen.getAllByText("执行命令").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('.ant-bubble[data-role="assistant"]')).toHaveLength(1);
+    expect(screen.getAllByText("执行命令")).toHaveLength(1);
     expect(screen.getByText("pwd")).toBeInTheDocument();
     expect(screen.getByText("搞定了吗")).toBeInTheDocument();
     expect(screen.queryByText("internal summary should stay hidden")).not.toBeInTheDocument();

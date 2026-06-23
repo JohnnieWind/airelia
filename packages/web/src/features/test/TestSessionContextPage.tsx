@@ -9,8 +9,15 @@ import {
 } from "../../api";
 import { createAgentResponseCardsFromSnapshot } from "../agent-chat/agentResponseCards";
 
-const sessionContextUserId = "user001";
+const sessionContextUserId = "WUZHENGYU458";
 const sessionContextSessionId = "1";
+
+type AssistantHistoryDraft = {
+  id: string;
+  content: string;
+  thinkingContent: string;
+  toolCalls: AgentToolCall[];
+};
 
 function TestSessionContextPage() {
   const ref = useRef<ChatAnywhereRef>(null);
@@ -135,27 +142,50 @@ function TestSessionContextPage() {
 }
 
 function normalizeSessionContextMessages(contextMessages: AgentSessionContextMessage[]): TMessage[] {
-  return contextMessages
-    .filter((message) => message.name !== "__compaction_summary__")
-    .flatMap((message) => normalizeSessionContextMessage(message));
-}
+  const normalizedMessages: TMessage[] = [];
+  let pendingAssistant: AssistantHistoryDraft | undefined;
 
-function normalizeSessionContextMessage(message: AgentSessionContextMessage): TMessage[] {
-  if (message.role === "USER") {
-    const content = extractTextContent(message.content);
+  const flushPendingAssistant = () => {
+    if (!pendingAssistant) {
+      return;
+    }
 
-    return content ? [createTextMessage(message, "user", content)] : [];
+    normalizedMessages.push(createAssistantHistoryMessage(pendingAssistant));
+    pendingAssistant = undefined;
+  };
+
+  for (const message of contextMessages) {
+    if (message.name === "__compaction_summary__") {
+      continue;
+    }
+
+    if (message.role === "USER") {
+      const content = extractTextContent(message.content);
+
+      flushPendingAssistant();
+
+      if (content) {
+        normalizedMessages.push(createTextMessage(message, "user", content));
+      }
+
+      continue;
+    }
+
+    if (message.role === "ASSISTANT") {
+      flushPendingAssistant();
+      pendingAssistant = createAssistantHistoryDraft(message);
+      continue;
+    }
+
+    if (message.role === "TOOL") {
+      pendingAssistant ??= createAssistantHistoryDraft(message);
+      mergeToolResultCalls(pendingAssistant, extractToolResultCalls(message.content));
+    }
   }
 
-  if (message.role === "ASSISTANT") {
-    return [createAssistantHistoryMessage(message)];
-  }
+  flushPendingAssistant();
 
-  if (message.role === "TOOL") {
-    return [createToolResultHistoryMessage(message)];
-  }
-
-  return [];
+  return normalizedMessages;
 }
 
 function createTextMessage(message: AgentSessionContextMessage, role: "assistant" | "user", content: string): TMessage {
@@ -167,45 +197,51 @@ function createTextMessage(message: AgentSessionContextMessage, role: "assistant
   };
 }
 
-function createAssistantHistoryMessage(message: AgentSessionContextMessage): TMessage {
-  const content = extractTextContent(message.content);
-  const thinkingContent = extractThinkingContent(message.content);
-  const toolCalls = extractToolUseCalls(message.content);
+function createAssistantHistoryDraft(message: AgentSessionContextMessage): AssistantHistoryDraft {
+  return {
+    id: message.id || uuid(),
+    content: extractTextContent(message.content),
+    thinkingContent: extractThinkingContent(message.content),
+    toolCalls: extractToolUseCalls(message.content)
+  };
+}
+
+function createAssistantHistoryMessage(draft: AssistantHistoryDraft): TMessage {
   const cards = createAgentResponseCardsFromSnapshot(
-    message.id || uuid(),
+    draft.id,
     {
       done: true,
-      reply: content,
-      thinking: thinkingContent,
-      thinkingBlocks: thinkingContent
+      reply: draft.content,
+      thinking: draft.thinkingContent,
+      thinkingBlocks: draft.thinkingContent
         ? [
             {
-              id: `${message.id}:thinking`,
-              content: thinkingContent,
+              id: `${draft.id}:thinking`,
+              content: draft.thinkingContent,
               loading: false
             }
           ]
         : [],
-      textBlocks: content ? [{ id: `${message.id}:text`, content }] : [],
-      toolCalls,
+      textBlocks: draft.content ? [{ id: `${draft.id}:text`, content: draft.content }] : [],
+      toolCalls: draft.toolCalls,
       operations: [],
       operateCards: [],
       ragCards: [],
       webSearchCards: [],
       todoCards: [],
       parts: [
-        ...(thinkingContent ? ([{ type: "thinking", id: `${message.id}:thinking` }] as const) : []),
-        ...toolCalls.map((toolCall) => ({ type: "tool" as const, id: toolCall.id })),
-        ...(content ? ([{ type: "text", id: `${message.id}:text` }] as const) : [])
+        ...(draft.thinkingContent ? ([{ type: "thinking", id: `${draft.id}:thinking` }] as const) : []),
+        ...draft.toolCalls.map((toolCall) => ({ type: "tool" as const, id: toolCall.id })),
+        ...(draft.content ? ([{ type: "text", id: `${draft.id}:text` }] as const) : [])
       ],
       events: []
     },
     "finished",
-    content
+    draft.content
   );
 
   return {
-    id: message.id || uuid(),
+    id: draft.id,
     role: "assistant",
     content: "",
     cards,
@@ -213,35 +249,20 @@ function createAssistantHistoryMessage(message: AgentSessionContextMessage): TMe
   };
 }
 
-function createToolResultHistoryMessage(message: AgentSessionContextMessage): TMessage {
-  const toolCalls = extractToolResultCalls(message.content);
-  const cards = createAgentResponseCardsFromSnapshot(
-    message.id || uuid(),
-    {
-      done: true,
-      reply: "",
-      thinking: "",
-      thinkingBlocks: [],
-      textBlocks: [],
-      toolCalls,
-      operations: [],
-      operateCards: [],
-      ragCards: [],
-      webSearchCards: [],
-      todoCards: [],
-      parts: toolCalls.map((toolCall) => ({ type: "tool" as const, id: toolCall.id })),
-      events: []
-    },
-    "finished"
-  );
+function mergeToolResultCalls(draft: AssistantHistoryDraft, toolResultCalls: AgentToolCall[]) {
+  for (const toolResultCall of toolResultCalls) {
+    const existingToolCall = draft.toolCalls.find((toolCall) => toolCall.id === toolResultCall.id);
 
-  return {
-    id: message.id || uuid(),
-    role: "assistant",
-    content: "",
-    cards,
-    msgStatus: "finished"
-  };
+    if (!existingToolCall) {
+      draft.toolCalls.push(toolResultCall);
+      continue;
+    }
+
+    existingToolCall.title = toolResultCall.title || existingToolCall.title;
+    existingToolCall.subTitle = toolResultCall.subTitle || existingToolCall.subTitle;
+    existingToolCall.output = toolResultCall.output;
+    existingToolCall.status = toolResultCall.status;
+  }
 }
 
 function extractTextContent(contentBlocks: Record<string, unknown>[]): string {
