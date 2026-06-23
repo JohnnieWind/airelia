@@ -1,32 +1,25 @@
 package com.airelia.server.agent;
 
-import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.Map;
+import java.util.List;
+import java.util.Set;
 
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.event.AgentEvent;
 import io.agentscope.core.event.AgentEventType;
+import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.UserMessage;
-import io.agentscope.core.model.GenerateOptions;
-import io.agentscope.core.model.OpenAIChatModel;
-import io.agentscope.harness.agent.HarnessAgent;
-import io.agentscope.harness.agent.memory.compaction.CompactionConfig;
+import io.agentscope.core.state.AgentState;
+import io.agentscope.core.state.AgentStateStore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import org.springframework.web.server.ResponseStatusException;
 
 import static io.agentscope.core.event.AgentEventType.REQUEST_STOP;
 
@@ -34,17 +27,11 @@ import static io.agentscope.core.event.AgentEventType.REQUEST_STOP;
 @RequestMapping("/api/agent")
 @Slf4j
 public class AgentController {
-    private final String testModelBaseUrl;
-    private final String testModelName;
-    private final String testModelApiKey;
 
-    public AgentController(
-            @Value("${airelia.agent.test.base-url:https://api.minimaxi.com/v1}") String testModelBaseUrl,
-            @Value("${airelia.agent.test.model-name:MiniMax-M3}") String testModelName,
-            @Value("${airelia.agent.test.api-key:}") String testModelApiKey) {
-        this.testModelBaseUrl = testModelBaseUrl;
-        this.testModelName = testModelName;
-        this.testModelApiKey = testModelApiKey;
+    private final AgentService agentService;
+
+    public AgentController(AgentService agentService) {
+        this.agentService = agentService;
     }
 
     /**
@@ -82,40 +69,16 @@ public class AgentController {
     @PostMapping("/test")
     public SseEmitter test(@Valid @RequestBody TestRequest testRequest) {
         log.info("Handling POST /api/agent/stream");
-        if (testModelApiKey.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Agent test model API key is not configured");
-        }
 
         SseEmitter emitter = new SseEmitter(0L);
 
-        HarnessAgent agent = HarnessAgent.builder()
-                .name("default")
-                .sysPrompt("你是一个AI助手。")
-                // 字符串形式由 ModelRegistry 解析 —— 自动读取 DASHSCOPE_API_KEY；
-                // 切换其他厂商时改用 "openai:gpt-5.5"、"anthropic:claude-sonnet-4-5"、
-                // "gemini:gemini-2.0-flash" 或 "ollama:llama3"。
-                .model(OpenAIChatModel.builder()
-                        .baseUrl(testModelBaseUrl)
-                        .modelName(testModelName)
-                        .apiKey(testModelApiKey)
-                        .generateOptions(GenerateOptions.builder()
-                                .additionalBodyParams(Map.of("reasoning_split", true))
-                                .build())
-                        .stream(true)
-                        .build())
-                .workspace(Paths.get(".agentscope/default/workspace"))
-                .compaction(CompactionConfig.builder()
-                        .triggerMessages(30)
-                        .keepMessages(10)
-                        .build())
-                .build();
         RuntimeContext ctx = RuntimeContext.builder()
                 .sessionId(testRequest.getSessionId())
                 .userId(testRequest.getUserId())
                 .build();
 
 
-        agent.streamEvents(new UserMessage(testRequest.getMessage()), ctx)
+        agentService.getDefaultAgent().streamEvents(new UserMessage(testRequest.getMessage()), ctx)
                 .subscribe(
                         event -> sendEvent(emitter, event),
                         error -> {
@@ -142,5 +105,20 @@ public class AgentController {
             log.warn("Unable to send agent stream event", exception);
             emitter.completeWithError(exception);
         }
+    }
+
+    @GetMapping("/agent/sessionList")
+    public Set<String> getSessionList(@RequestParam String userId){
+        AgentStateStore stateStore = agentService.getDefaultAgent().getStateStore();
+        Set<String> strings = stateStore.listSessionIds(userId);
+        return strings;
+    }
+
+
+    @GetMapping("/agent/sessionContext")
+    public List<Msg> getSessionContext(@RequestParam String userId,@RequestParam String sessionId){
+        AgentState agentState = agentService.getDefaultAgent().getDelegate().getAgentState(userId, sessionId);
+        List<Msg> context = agentState.getContext();
+        return context;
     }
 }
