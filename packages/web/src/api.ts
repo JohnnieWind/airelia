@@ -94,6 +94,7 @@ export interface AgentThinkingBlock {
   content: string;
   title?: string;
   subTitle?: string;
+  loading?: boolean;
 }
 
 export interface AgentTextBlock {
@@ -391,7 +392,7 @@ function applyAgentStreamEvent(
     applyDataBlockEvent(snapshot, event, dataBlockBuffers);
   }
 
-  if (eventType.includes("THINKING") && delta) {
+  if (eventType.includes("THINKING")) {
     applyThinkingEvent(snapshot, event, delta);
     return;
   }
@@ -410,14 +411,27 @@ function applyAgentStreamEvent(
   }
 }
 
-function applyThinkingEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, delta: string) {
+function applyThinkingEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, delta?: string) {
   const payload = isRecord(event.data) ? event.data : {};
+  const eventType = event.type.toUpperCase();
   const thinkingId = getThinkingBlockId(payload);
   const thinkingBlock = getOrCreateThinkingBlock(snapshot, thinkingId, payload);
 
   appendPartOnce(snapshot, { type: "thinking", id: thinkingId });
-  thinkingBlock.content += delta;
-  snapshot.thinking += delta;
+
+  if (eventType.includes("START")) {
+    thinkingBlock.loading = true;
+  }
+
+  if (delta) {
+    thinkingBlock.loading = true;
+    thinkingBlock.content += delta;
+    snapshot.thinking += delta;
+  }
+
+  if (eventType.includes("END")) {
+    thinkingBlock.loading = false;
+  }
 }
 
 function applyTextEvent(snapshot: AgentStreamSnapshot, event: AgentStreamEvent, delta: string) {

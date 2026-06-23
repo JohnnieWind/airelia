@@ -45,6 +45,62 @@ describe("createAgentResponseCards", () => {
 
     expect(screen.queryByRole("status", { name: "AI 回复生成中" })).not.toBeInTheDocument();
   });
+
+  it("marks thinking cards as generating while their stream block is loading", () => {
+    const cards = createAgentResponseCards({
+      id: "assistant-1",
+      content: "",
+      status: "generating",
+      thinkingBlocks: [
+        {
+          id: "reply_model:plan",
+          content: "正在分析。",
+          loading: true
+        }
+      ],
+      parts: [{ type: "thinking", id: "reply_model:plan" }]
+    });
+
+    expect(cards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "Thinking",
+          data: expect.objectContaining({
+            id: "reply_model:plan",
+            loading: true
+          })
+        })
+      ])
+    );
+  });
+
+  it("keeps a loading thinking card visible before its first content delta", () => {
+    const cards = createAgentResponseCards({
+      id: "assistant-1",
+      content: "",
+      status: "generating",
+      thinkingBlocks: [
+        {
+          id: "reply_model:plan",
+          content: "",
+          loading: true
+        }
+      ],
+      parts: [{ type: "thinking", id: "reply_model:plan" }]
+    });
+
+    expect(cards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "Thinking",
+          data: expect.objectContaining({
+            id: "reply_model:plan",
+            loading: true
+          })
+        })
+      ])
+    );
+  });
 });
 
 function createRuntimeOperationMessage(): AgentResponseCardMessage {

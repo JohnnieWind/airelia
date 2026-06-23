@@ -176,6 +176,93 @@ describe("api", () => {
     });
   });
 
+  it("tracks thinking block loading from stream start and end events", async () => {
+    let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const encoder = new TextEncoder();
+    const updates: AgentStreamSnapshot[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "text/event-stream;charset=UTF-8"
+      },
+      body: new ReadableStream<Uint8Array>({
+        start(streamController) {
+          controller = streamController;
+        }
+      })
+    } as unknown as Response);
+
+    const promise = sendAgentTestMessageStream("展示思考状态", {
+      onUpdate(snapshot) {
+        updates.push(snapshot);
+      }
+    });
+
+    controller?.enqueue(
+      encoder.encode(
+        [
+          'event:THINKING_BLOCK_START\ndata:{"type":"THINKING_BLOCK_START","replyId":"reply_model","blockId":"plan","title":"深度思考"}',
+          'event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","replyId":"reply_model","blockId":"plan","delta":"正在分析。"}'
+        ].join("\n\n") + "\n\n"
+      )
+    );
+    await flushPromises();
+
+    expect(updates.at(-1)?.thinkingBlocks).toMatchObject([
+      {
+        id: "reply_model:plan",
+        content: "正在分析。",
+        loading: true
+      }
+    ]);
+
+    controller?.enqueue(
+      encoder.encode(
+        [
+          'event:THINKING_BLOCK_END\ndata:{"type":"THINKING_BLOCK_END","replyId":"reply_model","blockId":"plan"}',
+          'event:AGENT_END\ndata:{"type":"AGENT_END"}'
+        ].join("\n\n") + "\n\n"
+      )
+    );
+    controller?.close();
+
+    await expect(promise).resolves.toMatchObject({
+      thinkingBlocks: [
+        {
+          id: "reply_model:plan",
+          content: "正在分析。",
+          loading: false
+        }
+      ]
+    });
+  });
+
+  it("does not finish thinking block loading from the agent end event", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: {
+        get: () => "text/event-stream;charset=UTF-8"
+      },
+      text: async () =>
+        [
+          'event:THINKING_BLOCK_START\ndata:{"type":"THINKING_BLOCK_START","replyId":"reply_model","blockId":"plan"}',
+          'event:THINKING_BLOCK_DELTA\ndata:{"type":"THINKING_BLOCK_DELTA","replyId":"reply_model","blockId":"plan","delta":"正在分析。"}',
+          'event:AGENT_END\ndata:{"type":"AGENT_END"}'
+        ].join("\n\n")
+    } as unknown as Response);
+
+    await expect(sendAgentTestMessageStream("展示思考状态")).resolves.toMatchObject({
+      thinkingBlocks: [
+        {
+          id: "reply_model:plan",
+          content: "正在分析。",
+          loading: true
+        }
+      ]
+    });
+  });
+
   it("keeps separate text blocks ordered by event id", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,

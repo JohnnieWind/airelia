@@ -54,6 +54,7 @@ type ThinkingCardData = {
   content: string;
   title?: string;
   subTitle?: string;
+  loading?: boolean;
 };
 
 type ToolCallCardData = AgentToolCall;
@@ -139,7 +140,7 @@ function appendThinkingCard(cards: AgentResponseCards, message: AgentResponseCar
 }
 
 function appendThinkingBlockCard(cards: AgentResponseCards, messageId: string, thinkingBlock: AgentThinkingBlock) {
-  if (!thinkingBlock.content.trim()) {
+  if (!thinkingBlock.loading && !thinkingBlock.content.trim()) {
     return;
   }
 
@@ -150,7 +151,8 @@ function appendThinkingBlockCard(cards: AgentResponseCards, messageId: string, t
       id: thinkingBlock.id,
       content: thinkingBlock.content,
       title: thinkingBlock.title,
-      subTitle: thinkingBlock.subTitle ?? thinkingBlock.id
+      subTitle: thinkingBlock.subTitle ?? thinkingBlock.id,
+      loading: thinkingBlock.loading
     } satisfies ThinkingCardData,
     component: ThinkingCard as FC
   });
@@ -418,10 +420,12 @@ export function OperationIcon({ status }: { status: OperationStatus }) {
 }
 
 function ThinkingCard({ data }: { data: ThinkingCardData }) {
+  const status: OperationStatus = data.loading ? "running" : "done";
+
   return (
     <OperateCard
       header={{
-        icon: <OperationIcon status="idle" />,
+        icon: <OperationIcon status={status} />,
         title: data.title ?? "深度思考",
         description: data.subTitle ?? data.id
       }}
