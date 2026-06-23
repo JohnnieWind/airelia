@@ -48,6 +48,7 @@ const defaultAgentResponseCardDisplayConfig: ResolvedAgentResponseCardDisplayCon
 };
 
 const runtimeOperationTitles = new Set(["Agent 执行", "模型调用"]);
+const executeCommandPreviewMaxLength = 36;
 
 type ThinkingCardData = {
   id: string;
@@ -451,10 +452,21 @@ function formatToolCallSubTitle(toolCall: AgentToolCall): string {
   const command = isRecord(toolCall.input) && typeof toolCall.input.command === "string" ? toolCall.input.command : undefined;
 
   if (isExecuteToolCall(toolCall) && command) {
-    return command;
+    return formatExecuteCommandPreview(command);
   }
 
   return toolCall.subTitle || toolCall.status;
+}
+
+function formatExecuteCommandPreview(command: string): string {
+  // Keep command previews short so the localized tool title stays readable in compact cards.
+  const compactCommand = command.trim().replace(/\s+/g, " ");
+
+  if (compactCommand.length <= executeCommandPreviewMaxLength) {
+    return compactCommand;
+  }
+
+  return `${compactCommand.slice(0, executeCommandPreviewMaxLength)}...`;
 }
 
 function isExecuteToolCall(toolCall: AgentToolCall): boolean {
@@ -470,6 +482,10 @@ function getToolDisplayName(toolCall: AgentToolCall): string | undefined {
 
   if (normalizedTitle === "read_file") {
     return "读取文件";
+  }
+
+  if (normalizedTitle === "write_file") {
+    return "写入文件";
   }
 
   return undefined;

@@ -15,6 +15,46 @@ describe("createAgentResponseCards", () => {
     expect(screen.getByText("读取文件")).toBeInTheDocument();
   });
 
+  it("localizes write_file tool calls", () => {
+    renderCards(
+      createAgentResponseCards(
+        createToolCallMessage({
+          id: "call_write",
+          title: "write_file",
+          subTitle: "call_write",
+          input: { path: "README.md", content: "Hello" },
+          output: { ok: true },
+          status: "done"
+        })
+      )
+    );
+
+    expect(screen.getByText("写入文件")).toBeInTheDocument();
+  });
+
+  it("uses a compact command preview for execute tool calls", () => {
+    const command =
+      "cp /Users/wuzhengyu/Documents/projects/airelia/packages/server/universe.html /Users/wuzhengyu/Downloads/universe.html";
+    const commandPreview = `${command.slice(0, 36)}...`;
+
+    renderCards(
+      createAgentResponseCards(
+        createToolCallMessage({
+          id: "call_execute",
+          title: "execute",
+          subTitle: "call_execute",
+          input: { command },
+          output: { ok: true },
+          status: "done"
+        })
+      )
+    );
+
+    expect(screen.getByText("执行命令")).toBeInTheDocument();
+    expect(screen.getByText(commandPreview)).toBeInTheDocument();
+    expect(screen.queryByText(command)).not.toBeInTheDocument();
+  });
+
   it("shows runtime operation cards when enabled", () => {
     renderCards(
       createAgentResponseCards({
@@ -139,6 +179,16 @@ function createRuntimeOperationMessage(): AgentResponseCardMessage {
       { type: "operation", id: "model-reply_model" },
       { type: "tool", id: "call_1" }
     ]
+  };
+}
+
+function createToolCallMessage(toolCall: NonNullable<AgentResponseCardMessage["toolCalls"]>[number]): AgentResponseCardMessage {
+  return {
+    id: "assistant-tool",
+    content: "",
+    status: "finished",
+    toolCalls: [toolCall],
+    parts: [{ type: "tool", id: toolCall.id }]
   };
 }
 
